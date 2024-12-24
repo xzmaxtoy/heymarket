@@ -37,50 +37,21 @@ router.route('/range')
       startDateTime.setUTCHours(0, 0, 0, 0);
       endDateTime.setUTCHours(23, 59, 59, 999);
 
-      // Get messages for each day in the range
-      const messages = [];
-      const currentDate = new Date(startDateTime);
-      
-      while (currentDate <= endDateTime) {
-        let page = 1;
-        let hasMore = true;
-        
-        while (hasMore) {
-          console.log(`Fetching messages for ${currentDate.toISOString()} page ${page}`);
-          
-          const requestConfig = {
-            ...addHeymarketAuth(req),
-            url: `${config.heymarketBaseUrl}/messages/all`,
-            method: 'POST',
-            data: {
-              created_at: currentDate.toISOString(),
-              order: 'created_at',
-              ascending: true,
-              limit: 200
-            }
-          };
-
-          try {
-            const response = await axios(requestConfig);
-            const pageMessages = Array.isArray(response.data) ? response.data : [];
-            
-            console.log(`Found ${pageMessages.length} messages on page ${page}`);
-            messages.push(...pageMessages);
-            
-            hasMore = pageMessages.length === 50;
-            page++;
-            
-            // Add a small delay to avoid rate limiting
-            await new Promise(resolve => setTimeout(resolve, 100));
-          } catch (error) {
-            console.error(`Error fetching page ${page}:`, error.message);
-            hasMore = false;
-          }
+      // Get messages from Heymarket API with descending order to get latest messages first
+      const requestConfig = {
+        ...addHeymarketAuth(req),
+        url: `${config.heymarketBaseUrl}/messages/all`,
+        method: 'POST',
+        data: {
+          created_at: startDateTime.toISOString(),
+          order: 'created_at',
+          ascending: false,  // Get latest messages first
+          limit: 100  // Increase limit to get more messages in one request
         }
-        
-        // Move to next day
-        currentDate.setDate(currentDate.getDate() + 1);
-      }
+      };
+
+      const response = await axios(requestConfig);
+      const messages = Array.isArray(response.data) ? response.data : [];
 
       // Filter messages by date range
       const filteredMessages = messages.filter(msg => {
@@ -110,32 +81,27 @@ router.route('/range')
         cleanPhone = '1' + cleanPhone.slice(-10);
       }
       
-      // Store all message dates for each phone number
+      // Since messages are in descending order, first occurrence is the latest
       if (!phoneStats.has(cleanPhone)) {
         phoneStats.set(cleanPhone, {
           count: 1,
           lastStatus: msg.status,
-          messageDates: [new Date(msg.date || msg.created_at)]
+          lastDate: msg.date || msg.created_at
         });
       } else {
         const stats = phoneStats.get(cleanPhone);
         stats.count++;
-        stats.messageDates.push(new Date(msg.date || msg.created_at));
       }
     });
 
-    // Convert to array and sort by count, finding the latest date for each phone number
+    // Convert to array and sort by count
     const results = Array.from(phoneStats.entries())
-      .map(([phone, stats]) => {
-        // Find the latest date from all messages for this phone number
-        const latestDate = new Date(Math.max(...stats.messageDates.map(date => date.getTime())));
-        return {
-          phoneNumber: phone,  // Phone number already has "1" prefix from earlier processing
-          messageCount: stats.count,
-          lastStatus: stats.lastStatus,
-          lastDate: latestDate.toISOString()
-        };
-      })
+      .map(([phone, stats]) => ({
+        phoneNumber: phone,  // Phone number already has "1" prefix from earlier processing
+        messageCount: stats.count,
+        lastStatus: stats.lastStatus,
+        lastDate: stats.lastDate
+      }))
       .sort((a, b) => b.messageCount - a.messageCount);
 
     // Handle pagination and return simplified response
