@@ -68,10 +68,17 @@ router.route('/range')
       
       // Ensure phone number is 11 digits (1 + 10 digits)
       let cleanPhone = phone.replace(/\D/g, '');
+      // If it's 10 digits, add "1" prefix
       if (cleanPhone.length === 10) {
         cleanPhone = '1' + cleanPhone;
-      } else if (cleanPhone.length === 11 && !cleanPhone.startsWith('1')) {
+      }
+      // If it's 11 digits but doesn't start with "1", make it start with "1"
+      else if (cleanPhone.length === 11 && !cleanPhone.startsWith('1')) {
         cleanPhone = '1' + cleanPhone.substring(1);
+      }
+      // If it's not 10 or 11 digits, try to extract last 10 digits and add "1"
+      else if (cleanPhone.length > 11) {
+        cleanPhone = '1' + cleanPhone.slice(-10);
       }
       
       if (!phoneStats.has(cleanPhone)) {
@@ -96,15 +103,11 @@ router.route('/range')
 
     // Convert to array and sort by count
     const results = Array.from(phoneStats.entries())
-      .map(([phone, stats]) => {
-        // Ensure phone number has "1" prefix
-        const formattedPhone = phone.length === 10 ? `1${phone}` : phone;
-        return {
-          phoneNumber: formattedPhone,
-          messageCount: stats.count,
-          lastStatus: stats.lastStatus
-        };
-      })
+      .map(([phone, stats]) => ({
+        phoneNumber: phone,  // Phone number already has "1" prefix from earlier processing
+        messageCount: stats.count,
+        lastStatus: stats.lastStatus
+      }))
       .sort((a, b) => b.messageCount - a.messageCount);
 
     // Handle pagination and return simplified response
