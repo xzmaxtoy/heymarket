@@ -1,17 +1,35 @@
 {
   "name": "heymarket-endpoint",
   "version": "1.0.0",
-  "description": "Heymarket API endpoint",
+  "description": "Heymarket API endpoint for message management",
   "main": "src/index.js",
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "build": "npm install"
+    "build": "npm install",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint ."
   },
   "engines": {
     "node": "18.x"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xzmaxtoy/heymarket.git"
+  },
+  "keywords": [
+    "api",
+    "heymarket",
+    "messages",
+    "express"
+  ],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/xzmaxtoy/heymarket/issues"
+  },
+  "homepage": "https://github.com/xzmaxtoy/heymarket#readme",
   "dependencies": {
     "express": "^4.17.1",
     "dotenv": "^10.0.0",
