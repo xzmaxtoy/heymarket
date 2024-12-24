@@ -37,21 +37,50 @@ router.route('/range')
       startDateTime.setUTCHours(0, 0, 0, 0);
       endDateTime.setUTCHours(23, 59, 59, 999);
 
-      // Get messages from Heymarket API with descending order to get latest messages first
-      const requestConfig = {
-        ...addHeymarketAuth(req),
-        url: `${config.heymarketBaseUrl}/messages/all`,
-        method: 'POST',
-        data: {
-          created_at: startDateTime.toISOString(),
-          order: 'created_at',
-          ascending: false,  // Get latest messages first
-          limit: 100  // Increase limit to get more messages in one request
-        }
-      };
+      // Get messages for each day in the range
+      const messages = [];
+      const currentDate = new Date(startDateTime);
+      
+      while (currentDate <= endDateTime) {
+        let page = 1;
+        let hasMore = true;
+        
+        while (hasMore) {
+          console.log(`Fetching messages for ${currentDate.toISOString()} page ${page}`);
+          
+          const requestConfig = {
+            ...addHeymarketAuth(req),
+            url: `${config.heymarketBaseUrl}/messages/all`,
+            method: 'POST',
+            data: {
+              created_at: currentDate.toISOString(),
+              order: 'created_at',
+              ascending: false,  // Get latest messages first
+              limit: 200
+            }
+          };
 
-      const response = await axios(requestConfig);
-      const messages = Array.isArray(response.data) ? response.data : [];
+          try {
+            const response = await axios(requestConfig);
+            const pageMessages = Array.isArray(response.data) ? response.data : [];
+            
+            console.log(`Found ${pageMessages.length} messages on page ${page}`);
+            messages.push(...pageMessages);
+            
+            hasMore = pageMessages.length === 50;
+            page++;
+            
+            // Add a small delay to avoid rate limiting
+            await new Promise(resolve => setTimeout(resolve, 100));
+          } catch (error) {
+            console.error(`Error fetching page ${page}:`, error.message);
+            hasMore = false;
+          }
+        }
+        
+        // Move to next day
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
 
       // Filter messages by date range
       const filteredMessages = messages.filter(msg => {
@@ -81,7 +110,7 @@ router.route('/range')
         cleanPhone = '1' + cleanPhone.slice(-10);
       }
       
-      // Since messages are in descending order, first occurrence is the latest
+      // Store first occurrence as latest since messages are in descending order
       if (!phoneStats.has(cleanPhone)) {
         phoneStats.set(cleanPhone, {
           count: 1,
@@ -91,6 +120,14 @@ router.route('/range')
       } else {
         const stats = phoneStats.get(cleanPhone);
         stats.count++;
+        
+        // Update lastDate if this message is newer
+        const msgDate = new Date(msg.date || msg.created_at);
+        const lastDate = new Date(stats.lastDate);
+        if (msgDate > lastDate) {
+          stats.lastStatus = msg.status;
+          stats.lastDate = msg.date || msg.created_at;
+        }
       }
     });
 
