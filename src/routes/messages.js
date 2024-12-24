@@ -502,6 +502,115 @@ router.get('/:phoneNumber/all', async (req, res, next) => {
   }
 });
 
+// Send a message - must be placed before /:phoneNumber route to avoid conflicts
+router.post('/send', async (req, res, next) => {
+  try {
+    const { phoneNumber, message, attachments, isPrivate, author } = req.body;
+
+    // Validate required fields
+    if (!phoneNumber || !message) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields',
+        message: 'phoneNumber and message are required'
+      });
+    }
+
+    // Fixed values for inbox_id and creator_id
+    const inboxId = 21571;
+    const creatorId = 45507;
+
+    // Validate phone number format and ensure it has 11 digits with "1" prefix
+    let formattedPhone = phoneNumber.replace(/\D/g, '');
+    if (formattedPhone.length === 10) {
+      formattedPhone = '1' + formattedPhone;
+    } else if (formattedPhone.length === 11 && !formattedPhone.startsWith('1')) {
+      formattedPhone = '1' + formattedPhone.substring(1);
+    } else if (formattedPhone.length !== 11 || !formattedPhone.startsWith('1')) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid phone number format',
+        message: 'Phone number must be 10 digits or 11 digits starting with 1'
+      });
+    }
+
+    // Generate a unique local_id
+    const localId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Prepare message request
+    const messageConfig = {
+      ...addHeymarketAuth(req),
+      url: `${config.heymarketBaseUrl}/message/send`,
+      method: 'POST',
+      data: {
+        inbox_id: inboxId,
+        creator_id: creatorId,
+        phone_number: formattedPhone,
+        text: message,
+        local_id: localId,
+        ...(isPrivate && { private: true }),
+        ...(author && { author }),
+        ...(attachments && { media_url: attachments[0] }) // Assuming first attachment is media URL
+      },
+      timeout: 10000
+    };
+
+    // Send message
+    const response = await axios(messageConfig);
+
+    // Return success response
+    res.json({
+      success: true,
+      data: {
+        messageId: response.data.id,
+        status: response.data.status,
+        timestamp: response.data.created_at || new Date().toISOString(),
+        to: formattedPhone,
+        text: message,
+        localId,
+        inboxId,
+        creatorId
+      }
+    });
+  } catch (error) {
+    console.error('Error sending message:', {
+      error: error.message,
+      code: error.code,
+      status: error.response?.status,
+      data: error.response?.data,
+      timestamp: new Date().toISOString()
+    });
+
+    if (error.response?.status === 400) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid request',
+        message: error.response.data?.message || error.message
+      });
+    }
+
+    if (error.response?.status === 401) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid API key'
+      });
+    }
+
+    if (error.response?.status === 429) {
+      return res.status(429).json({
+        success: false,
+        error: 'Rate limit exceeded'
+      });
+    }
+
+    res.status(error.response?.status || 500).json({
+      success: false,
+      error: 'Failed to send message',
+      message: error.message
+    });
+  }
+});
+
 // Get last message and customer ID for a phone number
 router.get('/:phoneNumber', async (req, res, next) => {
   try {
