@@ -2,6 +2,7 @@ import express from 'express';
 import axios from 'axios';
 import config from '../config/config.js';
 import { addHeymarketAuth } from '../middleware/auth.js';
+import { getCachedData, setCachedData } from '../utils/fileCache.js';
 
 // Initialize router
 const router = express.Router();
@@ -37,7 +38,14 @@ router.route('/range')
       startDateTime.setUTCHours(0, 0, 0, 0);
       endDateTime.setUTCHours(23, 59, 59, 999);
 
-      // Get messages for each day in the range
+      // Check cache for past date ranges
+      const cachedData = await getCachedData(startDate, endDate);
+      if (cachedData) {
+        console.log('Returning cached data for date range');
+        return res.json(cachedData);
+      }
+
+      // Fetch messages from API
       const messages = [];
       const currentDate = new Date(startDateTime);
       
@@ -146,7 +154,7 @@ router.route('/range')
     const paginationEnd = paginationStart + parseInt(limit);
     const paginatedResults = results.slice(paginationStart, paginationEnd);
 
-    res.json({
+    const response = {
       success: true,
       data: {
         phoneNumbers: paginatedResults,
@@ -155,7 +163,12 @@ router.route('/range')
         limit: parseInt(limit),
         hasMore: paginationEnd < results.length
       }
-    });
+    };
+
+    // Cache the response
+    await setCachedData(startDate, endDate, response);
+
+    res.json(response);
     } catch (error) {
       console.error('Error fetching messages:', error);
       res.status(500).json({
