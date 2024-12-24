@@ -106,7 +106,8 @@ router.route('/range')
       .map(([phone, stats]) => ({
         phoneNumber: phone,  // Phone number already has "1" prefix from earlier processing
         messageCount: stats.count,
-        lastStatus: stats.lastStatus
+        lastStatus: stats.lastStatus,
+        lastDate: stats.lastDate
       }))
       .sort((a, b) => b.messageCount - a.messageCount);
 
@@ -286,7 +287,8 @@ router.route('/range')
         const formattedPhone = phone.length === 10 ? `1${phone}` : phone;
         return {
           phoneNumber: formattedPhone,
-          lastMessage: message
+          lastMessage: message,
+          lastDate: message.date
         };
       })
       .sort((a, b) => new Date(b.lastMessage.date) - new Date(a.lastMessage.date));
