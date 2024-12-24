@@ -96,11 +96,15 @@ router.route('/range')
 
     // Convert to array and sort by count
     const results = Array.from(phoneStats.entries())
-      .map(([phone, stats]) => ({
-        phoneNumber: phone,
-        messageCount: stats.count,
-        lastStatus: stats.lastStatus
-      }))
+      .map(([phone, stats]) => {
+        // Ensure phone number has "1" prefix
+        const formattedPhone = phone.length === 10 ? `1${phone}` : phone;
+        return {
+          phoneNumber: formattedPhone,
+          messageCount: stats.count,
+          lastStatus: stats.lastStatus
+        };
+      })
       .sort((a, b) => b.messageCount - a.messageCount);
 
     // Handle pagination and return simplified response
