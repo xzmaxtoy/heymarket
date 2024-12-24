@@ -66,7 +66,8 @@ router.route('/range')
       const phone = msg.target || msg.contact?.phone_number || msg.to || msg.from;
       if (!phone) return;
       
-      const cleanPhone = phone.replace(/^\+?1/, '');
+      // Ensure phone number is 11 digits (1 + 10 digits)
+      const cleanPhone = phone.replace(/\D/g, '').replace(/^\+?1?(\d{10})$/, '1$1');
       
       if (!phoneStats.has(cleanPhone)) {
         phoneStats.set(cleanPhone, {
@@ -231,7 +232,8 @@ router.route('/range')
       if (!phone) return;
       
       // Clean phone number (remove +1 or 1 prefix)
-      const cleanPhone = phone.replace(/^\+?1/, '');
+      // Ensure phone number is 11 digits (1 + 10 digits)
+      const cleanPhone = phone.replace(/\D/g, '').replace(/^\+?1?(\d{10})$/, '1$1');
       
       const messageDate = new Date(msg.created_at || msg.date);
       // Only process if we don't have this number yet or if this message is newer
