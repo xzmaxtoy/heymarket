@@ -1,0 +1,13 @@
+{
+  "tmpl_1735081333084_s965xshtl": {
+    "id": "tmpl_1735081333084_s965xshtl",
+    "text": "Hello {{name}}, your order {{orderId}} is ready",
+    "attachments": [],
+    "isPrivate": false,
+    "author": "Support Team",
+    "variables": [
+      "name",
+      "orderId"
+    ]
+  }
+}

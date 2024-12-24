@@ -1,69 +1,91 @@
 openapi: 3.0.0
 info:
-  title: Heymarket API Endpoint
-  description: A simplified interface to the Heymarket API for message management
+  title: Heymarket API
   version: 1.0.0
-  contact:
-    name: API Support
-    url: https://github.com/yourusername/heymarket-endpoint
+  description: |
+    API for interacting with Heymarket messaging service.
+    Supports single messages, templates, and batch operations.
 
 servers:
   - url: https://heymarket-api-dpbubhdceqb3fvge.canadaeast-01.azurewebsites.net
     description: Production server
-  - url: http://localhost:3000
-    description: Local development
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  schemas:
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+        message:
+          type: string
 
 paths:
-  /api/messages/range:
+  /health:
     get:
-      summary: Get messages by date range
-      description: |
-        Retrieves all messages within a specified date range.
-        Returns paginated messages sorted by date.
-      parameters:
-        - in: query
-          name: startDate
-          required: true
-          schema:
-            type: string
-            format: date
-          description: Start date in YYYY-MM-DD format
-          example: '2024-12-20'
-        - in: query
-          name: endDate
-          required: true
-          schema:
-            type: string
-            format: date
-          description: End date in YYYY-MM-DD format
-          example: '2024-12-24'
-        - in: query
-          name: page
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-          description: Page number for pagination
-        - in: query
-          name: limit
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 50
-          description: Number of messages per page
-        - in: header
-          name: Authorization
-          required: true
-          schema:
-            type: string
-          description: Bearer token for authentication
-          example: 'Bearer sk_uPCtZENJgx'
+      summary: Health check endpoint
       responses:
         '200':
-          description: Successful response
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /api/messages/send:
+    post:
+      summary: Send a message to a phone number
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phoneNumber
+                - message
+              properties:
+                phoneNumber:
+                  type: string
+                  description: Target phone number (10 digits)
+                  example: "1234567890"
+                message:
+                  type: string
+                  description: Message text to send
+                  example: "Hello from the API!"
+                attachments:
+                  type: array
+                  description: Optional array of media URLs
+                  items:
+                    type: string
+                isPrivate:
+                  type: boolean
+                  description: Whether to create a private comment (memo) within the conversation
+                  example: false
+                author:
+                  type: string
+                  description: Display name for who the message was sent from
+                  example: "Support Team"
+      responses:
+        '200':
+          description: Message sent successfully
           content:
             application/json:
               schema:
@@ -75,138 +97,124 @@ paths:
                   data:
                     type: object
                     properties:
-                      messages:
+                      messageId:
+                        type: string
+                      status:
+                        type: string
+                      timestamp:
+                        type: string
+                        format: date-time
+                      to:
+                        type: string
+                      text:
+                        type: string
+
+  /api/templates:
+    post:
+      summary: Create a message template
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - text
+              properties:
+                text:
+                  type: string
+                  description: Template text with variables in {{variable}} format
+                  example: "Hello {{name}}, your order {{orderId}} is ready"
+                attachments:
+                  type: array
+                  description: Optional array of attachment URLs
+                  items:
+                    type: string
+                isPrivate:
+                  type: boolean
+                  description: Whether messages using this template are private
+                author:
+                  type: string
+                  description: Default author for messages using this template
+      responses:
+        '201':
+          description: Template created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      text:
+                        type: string
+                      variables:
                         type: array
                         items:
-                          type: object
-                          properties:
-                            id:
-                              type: string
-                              example: '645138389'
-                            text:
-                              type: string
-                              example: 'Message content'
-                            date:
-                              type: string
-                              format: date-time
-                            sender:
-                              type: string
-                            status:
-                              type: string
-                              enum: [sent, delivered, failed]
-                            type:
-                              type: string
-                              enum: [text, media]
-                            channel:
-                              type: string
-                              enum: [sms, mms]
-                      totalMessages:
-                        type: integer
-                        example: 15
-                      dateRange:
-                        type: object
-                        properties:
-                          start:
+                          type: string
+
+    get:
+      summary: List all templates
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Templates retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        text:
+                          type: string
+                        variables:
+                          type: array
+                          items:
                             type: string
-                            format: date-time
-                          end:
-                            type: string
-                            format: date-time
-                      pagination:
-                        type: object
-                        properties:
-                          page:
-                            type: integer
-                            example: 1
-                          limit:
-                            type: integer
-                            example: 50
-                          totalPages:
-                            type: integer
-                            example: 2
-                          hasMore:
-                            type: boolean
-                            example: true
+
+  /api/templates/{templateId}/preview:
     post:
-      summary: Get messages by date range
-      description: |
-        Retrieves messages within a specified date range, grouped by phone number.
-        Returns the last message for each unique phone number within the range.
-        Uses Heymarket's /messages/all endpoint to fetch messages day by day and filters them by date range.
-        Handles pagination automatically to ensure all messages are retrieved.
+      summary: Preview a template with variables
+      security:
+        - ApiKeyAuth: []
       parameters:
-        - in: query
-          name: startDate
+        - name: templateId
+          in: path
           required: true
           schema:
             type: string
-            format: date
-          description: Start date in YYYY-MM-DD format
-          example: '2024-12-20'
-        - in: query
-          name: endDate
-          required: true
-          schema:
-            type: string
-            format: date
-          description: End date in YYYY-MM-DD format
-          example: '2024-12-24'
-        - in: query
-          name: page
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-          description: Page number for pagination
-        - in: query
-          name: limit
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 50
-          description: Number of phone numbers per page
-        - in: header
-          name: Authorization
-          required: true
-          schema:
-            type: string
-          description: Bearer token for authentication
-          example: 'Bearer sk_uPCtZENJgx'
       requestBody:
-        description: Optional request body for advanced filtering
-        required: false
+        required: true
         content:
           application/json:
             schema:
               type: object
               properties:
-                created_at:
-                  type: string
-                  format: date-time
-                  description: Optional override for the start date
-                order:
-                  type: string
-                  enum: [created_at]
-                  default: created_at
-                ascending:
-                  type: boolean
-                  default: true
-                limit:
-                  type: integer
-                  minimum: 1
-                  maximum: 50
-                  default: 50
-              example:
-                created_at: "2024-12-21T00:00:00Z"
-                order: "created_at"
-                ascending: true
-                limit: 50
+                variables:
+                  type: object
+                  additionalProperties:
+                    type: string
       responses:
         '200':
-          description: Successful response
+          description: Template preview generated
           content:
             application/json:
               schema:
@@ -218,213 +226,78 @@ paths:
                   data:
                     type: object
                     properties:
-                      phoneNumbers:
+                      text:
+                        type: string
+                      variables:
                         type: array
                         items:
-                          type: object
-                          properties:
-                            phoneNumber:
-                              type: string
-                              example: '4155551234'
-                            lastMessage:
-                              type: object
-                              properties:
-                                id:
-                                  type: string
-                                  example: '12345'
-                                text:
-                                  type: string
-                                  example: 'Message content'
-                                date:
-                                  type: string
-                                  format: date-time
-                                sender:
-                                  type: string
-                                status:
-                                  type: string
-                                  enum: [sent, delivered, failed]
-                                type:
-                                  type: string
-                                  enum: [text, media]
-                                channel:
-                                  type: string
-                                  enum: [sms, mms]
-                      totalPhoneNumbers:
-                        type: integer
-                        example: 10
-                      pagination:
-                        type: object
-                        properties:
-                          page:
-                            type: integer
-                            example: 1
-                          limit:
-                            type: integer
-                            example: 50
-                          totalPages:
-                            type: integer
-                            example: 5
-                          hasMore:
-                            type: boolean
-                            example: true
-                      dateRange:
-                        type: object
-                        properties:
-                          start:
-                            type: string
-                            format: date-time
-                          end:
-                            type: string
-                            format: date-time
-        '400':
-          description: Bad request
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: false
-                  error:
-                    type: string
-                    example: 'Invalid date format'
-                  message:
-                    type: string
-                    example: 'Dates should be in YYYY-MM-DD format'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: false
-                  error:
-                    type: string
-                    example: 'Invalid API key'
-        '404':
-          description: Not found
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: false
-                  error:
-                    type: string
-                    example: 'No messages found in date range'
-                  dateRange:
+                          type: string
+
+  /api/messages/batch:
+    post:
+      summary: Create a batch message operation
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - template
+                - recipients
+              properties:
+                batchId:
+                  type: string
+                  description: Optional unique identifier for idempotency
+                template:
+                  type: object
+                  required:
+                    - id
+                  properties:
+                    id:
+                      type: string
+                recipients:
+                  type: array
+                  items:
                     type: object
+                    required:
+                      - phoneNumber
+                      - variables
                     properties:
-                      start:
-                        type: string
-                        format: date-time
-                      end:
-                        type: string
-                        format: date-time
-  /api/messages/{phoneNumber}/all:
-    get:
-      summary: Get all messages for a phone number
-      description: |
-        Retrieves all messages for a specific phone number with pagination support.
-        Automatically adds "1" prefix to 10-digit US phone numbers.
-      parameters:
-        - in: path
-          name: phoneNumber
-          required: true
-          schema:
-            type: string
-            pattern: '^\d{10}$'
-          description: 10-digit US phone number
-          example: '3476811000'
-        - in: query
-          name: page
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-          description: Page number for pagination
-        - in: query
-          name: limit
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 50
-          description: Number of messages per page
-        - in: header
-          name: Authorization
-          required: true
-          schema:
-            type: string
-            pattern: '^Bearer\s[\w-]+$'
-          description: Bearer token for authentication
-          example: 'Bearer sk_uPCtZENJgx'
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: object
-                    properties:
-                      messages:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            id:
-                              type: string
-                              example: '645317322'
-                            text:
-                              type: string
-                              example: 'Message content'
-                            date:
-                              type: string
-                              format: date-time
-                              example: '2024-12-22T20:30:59.687237Z'
-                            sender:
-                              type: string
-                              example: '13474547312'
-                            status:
-                              type: string
-                              enum: [sent, delivered, failed]
-                              example: 'sent'
-                            type:
-                              type: string
-                              enum: [text, media]
-                              example: 'text'
-                            channel:
-                              type: string
-                              enum: [sms, mms]
-                              example: 'sms'
-                      totalMessages:
-                        type: integer
-                        example: 50
                       phoneNumber:
                         type: string
-                        example: '13476811000'
-                      page:
-                        type: integer
-                        example: 1
-                      limit:
-                        type: integer
-                        example: 50
-        '400':
-          description: Invalid phone number format
+                      variables:
+                        type: object
+                        additionalProperties:
+                          type: string
+                      overrides:
+                        type: object
+                        properties:
+                          isPrivate:
+                            type: boolean
+                          author:
+                            type: string
+                options:
+                  type: object
+                  properties:
+                    scheduleTime:
+                      type: string
+                      format: date-time
+                    priority:
+                      type: string
+                      enum: [high, normal, low]
+                    retryStrategy:
+                      type: object
+                      properties:
+                        maxAttempts:
+                          type: integer
+                        backoffMinutes:
+                          type: integer
+      responses:
+        '201':
+          description: Batch created successfully
           content:
             application/json:
               schema:
@@ -432,15 +305,43 @@ paths:
                 properties:
                   success:
                     type: boolean
-                    example: false
-                  error:
-                    type: string
-                    example: 'Invalid phone number format'
-                  message:
-                    type: string
-                    example: 'Phone number must be exactly 10 digits'
-        '401':
-          description: Authentication error
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      batchId:
+                        type: string
+                      status:
+                        type: string
+                        enum: [pending, processing, completed, failed]
+                      progress:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                          pending:
+                            type: integer
+                          processing:
+                            type: integer
+                          completed:
+                            type: integer
+                          failed:
+                            type: integer
+
+  /api/messages/batch/{batchId}:
+    get:
+      summary: Get batch operation status
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Batch status retrieved successfully
           content:
             application/json:
               schema:
@@ -448,12 +349,35 @@ paths:
                 properties:
                   success:
                     type: boolean
-                    example: false
-                  error:
-                    type: string
-                    example: 'Invalid API key'
-        '429':
-          description: Too many requests
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                      progress:
+                        type: object
+                      timing:
+                        type: object
+                      errors:
+                        type: object
+                      metrics:
+                        type: object
+
+  /api/messages/batch/{batchId}/analytics:
+    get:
+      summary: Get batch analytics
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Batch analytics retrieved successfully
           content:
             application/json:
               schema:
@@ -461,37 +385,36 @@ paths:
                 properties:
                   success:
                     type: boolean
-                    example: false
-                  error:
-                    type: string
-                    example: 'Rate limit exceeded'
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      messages_per_second:
+                        type: number
+                      success_rate:
+                        type: number
+                      completionRate:
+                        type: number
+                      errorBreakdown:
+                        type: object
+                      timing:
+                        type: object
 
   /api/messages/{phoneNumber}:
     get:
-      summary: Get message history for a phone number
-      description: |
-        Retrieves the last message and total message count for a specific phone number.
-        Automatically adds "1" prefix to 10-digit US phone numbers.
+      summary: Get last message and customer info for a phone number
+      security:
+        - ApiKeyAuth: []
       parameters:
-        - in: path
-          name: phoneNumber
+        - name: phoneNumber
+          in: path
           required: true
           schema:
             type: string
-            pattern: '^\d{10}$'
-          description: 10-digit US phone number
-          example: '3476811000'
-        - in: header
-          name: Authorization
-          required: true
-          schema:
-            type: string
-            pattern: '^Bearer\s[\w-]+$'
-          description: Bearer token for authentication
-          example: 'Bearer sk_uPCtZENJgx'
+          description: 10-digit phone number
       responses:
         '200':
-          description: Successful response
+          description: Message info retrieved successfully
           content:
             application/json:
               schema:
@@ -505,106 +428,27 @@ paths:
                     properties:
                       customerId:
                         type: string
-                        nullable: true
-                        description: Heymarket customer ID (null if not found)
-                        example: null
                       lastMessage:
                         type: object
-                        nullable: true
                         properties:
                           id:
                             type: string
-                            example: '645317322'
                           text:
                             type: string
-                            example: 'Message content'
                           date:
                             type: string
                             format: date-time
-                            example: '2024-12-22T20:30:59.687237Z'
                           sender:
                             type: string
-                            example: '13474547312'
                           status:
                             type: string
-                            enum: [sent, delivered, failed]
-                            example: 'sent'
                           type:
                             type: string
-                            enum: [text, media]
-                            example: 'text'
                           channel:
                             type: string
-                            enum: [sms, mms]
-                            example: 'sms'
                       messageStatus:
                         type: string
-                        enum: [sent, delivered, failed]
-                        example: 'sent'
                       totalMessages:
                         type: integer
-                        example: 50
                       phoneNumber:
                         type: string
-                        example: '13476811000'
-        '400':
-          description: Invalid phone number format
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: 'Invalid phone number format'
-                  message:
-                    type: string
-                    example: 'Phone number must be exactly 10 digits'
-        '401':
-          description: Authentication error
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: 'No authorization header'
-        '429':
-          description: Too many requests
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: 'Rate limit exceeded'
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: 'Failed to fetch messages'
-                  message:
-                    type: string
-                  details:
-                    type: object
-
-components:
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-
-security:
-  - bearerAuth: []
-
-tags:
-  - name: Messages
-    description: Message history operations
