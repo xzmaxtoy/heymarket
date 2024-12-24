@@ -9,14 +9,14 @@ import messagesRouter from './routes/messages.js';
 
 const app = express();
 
-// Security middleware
+// Basic security middleware
 app.use(helmet());
-// Configure CORS to allow frontend requests
+
+// Configure CORS
 app.use(cors({
-  origin: '*', // For development, in production set to specific origin
+  origin: '*',
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-  exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining']
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Handle preflight requests
@@ -33,63 +33,41 @@ app.use(limiter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Authentication middleware
-app.use(authenticate);
-
-// API routes
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
+// Root route - no auth required
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', message: 'API is running' });
 });
 
-app.use('/api/messages', messagesRouter);
-
-// Global error handler
-app.use((err, req, res, next) => {
-  console.error('Global error:', err);
-  res.status(err.status || 500).json({
-    success: false,
-    error: err.message || 'Internal server error',
-    details: process.env.NODE_ENV === 'development' ? err : undefined
-  });
-});
-
-// Debug route to verify routing
-app.get('/debug/routes', (req, res) => {
-  const routes = [];
-  app._router.stack.forEach(middleware => {
-    if (middleware.route) {
-      routes.push({
-        path: middleware.route.path,
-        methods: Object.keys(middleware.route.methods)
-      });
-    } else if (middleware.name === 'router') {
-      middleware.handle.stack.forEach(handler => {
-        if (handler.route) {
-          routes.push({
-            path: '/api/messages' + handler.route.path,
-            methods: Object.keys(handler.route.methods)
-          });
-        }
-      });
-    }
-  });
-  res.json(routes);
-});
-
-// Health check endpoint
+// Health check - no auth required
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// Authentication middleware only for API routes
+app.use('/api', authenticate);
+
+// API routes
+app.use('/api/messages', messagesRouter);
 
 // Error handling
 app.use(notFound);
 app.use(errorHandler);
 
 // Start server
-app.listen(config.port, () => {
-  console.log(`Server running on port ${config.port}`);
-  console.log(`Environment: ${config.environment}`);
+const port = process.env.PORT || process.env.WEBSITE_PORT || 8080;
+const server = app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+  console.log(`Environment: ${process.env.NODE_ENV}`);
+  console.log(`Process ID: ${process.pid}`);
+});
+
+// Handle shutdown gracefully
+process.on('SIGTERM', () => {
+  console.log('SIGTERM signal received: closing HTTP server');
+  server.close(() => {
+    console.log('HTTP server closed');
+    process.exit(0);
+  });
 });
 
 export default app;
