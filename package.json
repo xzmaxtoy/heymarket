@@ -10,7 +10,7 @@
     "build": "npm install",
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "eslint .",
-    "deploy": "az webapp deployment source config-zip --resource-group bradoriaapi2025group --name heymarket-api-dpbubhdceqb3fvge --src deploy.zip && zip -r deploy.zip . -x \"node_modules/*\" \".*\""
+    "deploy": "az webapp deployment source config-zip --resource-group bradoriaapi2025group --name heymarket-api --src deploy.zip && zip -r deploy.zip . -x \"node_modules/*\" \".*\""
   },
   "engines": {
     "node": "18.x"
