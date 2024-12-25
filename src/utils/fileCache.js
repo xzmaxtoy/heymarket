@@ -1,7 +1,10 @@
 import fs from 'fs/promises';
 import path from 'path';
 
-const CACHE_DIR = path.join(process.cwd(), 'cache');
+// Use Azure's temp directory in production, local cache directory in development
+const CACHE_DIR = process.env.NODE_ENV === 'production' 
+  ? path.join(process.env.TEMP || '/tmp', 'heymarket-cache')
+  : path.join(process.cwd(), 'cache');
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
 // Ensure cache directory exists
@@ -45,6 +48,14 @@ export async function getCachedData(startDate, endDate) {
     
     return data.content;
   } catch (error) {
+    console.error('Cache read error:', {
+      error: error.message,
+      code: error.code,
+      startDate,
+      endDate,
+      cacheDir: CACHE_DIR,
+      timestamp: new Date().toISOString()
+    });
     return null; // Return null if cache doesn't exist or is invalid
   }
 }
@@ -66,7 +77,14 @@ export async function setCachedData(startDate, endDate, data) {
     
     await fs.writeFile(cacheFile, JSON.stringify(cacheData));
   } catch (error) {
-    console.error('Cache write error:', error);
+    console.error('Cache write error:', {
+      error: error.message,
+      code: error.code,
+      startDate,
+      endDate,
+      cacheDir: CACHE_DIR,
+      timestamp: new Date().toISOString()
+    });
     // Continue even if caching fails
   }
 }
