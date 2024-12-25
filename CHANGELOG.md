@@ -8,11 +8,14 @@ All notable changes to this project will be documented in this file.
 - Batch messaging support with rate limiting
 - Template-based messaging system
 - File-based template storage
-- Message duplicate prevention system
 - Support for custom text in batch messages
 - Enhanced error handling and retry strategy
 - Batch analytics and status tracking
 - API documentation in OpenAPI format
+
+### Coming Soon
+- Message duplicate prevention system (planned)
+- Employee list integration for duplicate prevention exclusions
 
 ### Changed
 - Restructured project for better modularity
