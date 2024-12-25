@@ -2,7 +2,10 @@ import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
 
-const CACHE_DIR = path.join(process.cwd(), 'cache');
+// Use Azure's persistent storage path if available
+const CACHE_DIR = process.env.WEBSITE_CONTENTSHARE 
+  ? path.join('/home/site/wwwroot', 'data')
+  : path.join(process.cwd(), 'cache');
 const MESSAGE_HISTORY_FILE = 'messages.json';
 
 // Debug logging
@@ -38,9 +41,18 @@ export function formatPhoneNumber(phone) {
 // Ensure cache directory exists
 async function ensureCacheDir() {
   try {
+    logDebug('Checking cache directory:', CACHE_DIR);
     await fs.access(CACHE_DIR);
+    logDebug('Cache directory exists');
   } catch {
+    logDebug('Creating cache directory:', CACHE_DIR);
     await fs.mkdir(CACHE_DIR, { recursive: true });
+    const stats = await fs.stat(CACHE_DIR);
+    logDebug('Cache directory created:', {
+      path: CACHE_DIR,
+      isDirectory: stats.isDirectory(),
+      permissions: stats.mode.toString(8)
+    });
   }
 }
 
@@ -78,9 +90,12 @@ async function saveHistory(history) {
   try {
     await ensureCacheDir();
     const historyFile = getHistoryFile();
-    logDebug('Saving history:', history);
+    logDebug('Saving history to:', historyFile);
+    logDebug('History content:', history);
     await fs.writeFile(historyFile, JSON.stringify(history, null, 2));
-    logDebug('History saved successfully');
+    // Verify the file was written
+    const saved = await fs.readFile(historyFile, 'utf8');
+    logDebug('Saved history verified:', JSON.parse(saved));
   } catch (error) {
     console.error('Error saving message history:', error);
     throw error;

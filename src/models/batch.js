@@ -158,9 +158,14 @@ class Batch {
             attempt: attempts + 1
           });
 
+          console.log('Sending to Heymarket API:', messageConfig);
           const response = await axios(messageConfig);
           
-          console.log('API Response:', response.data);
+          console.log('API Response:', {
+            data: response.data,
+            status: response.status,
+            headers: response.headers
+          });
           console.log('Message sent successfully:', {
             messageId: response.data.message?.id || response.data.id,
             status: response.data.message?.status || response.data.status

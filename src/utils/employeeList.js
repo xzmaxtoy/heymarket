@@ -5,7 +5,10 @@ import { parse } from 'csv-parse/sync';
 import { formatPhoneNumber } from './messageHistory.js';
 import config from '../config/config.js';
 
-const CACHE_DIR = path.join(process.cwd(), 'cache');
+// Use Azure's persistent storage path if available
+const CACHE_DIR = process.env.WEBSITE_CONTENTSHARE 
+  ? path.join('/home/site/wwwroot', 'data')
+  : path.join(process.cwd(), 'cache');
 const EMPLOYEE_FILE = 'employees.json';
 const SYNC_INTERVAL = 3600000; // 1 hour
 

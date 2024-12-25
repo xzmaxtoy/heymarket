@@ -53,17 +53,50 @@ router.post('/', async (req, res) => {
       }
     }
 
-    console.log('Creating batch with:', {
-      template: template.id ? `templateId: ${template.id}` : `text: ${template.text}`,
-      recipientsCount: recipients.length,
-      options
+    // Log detailed request information
+    console.log('Batch Request:', {
+      timestamp: new Date().toISOString(),
+      requestId: req.headers['x-request-id'] || 'no-request-id',
+      auth: {
+        hasApiKey: !!req.apiKey,
+        keyPrefix: req.apiKey ? req.apiKey.substring(0, 8) + '...' : 'none'
+      },
+      template: {
+        type: template.id ? 'existing' : 'temporary',
+        id: template.id,
+        text: template.text,
+        author: template.author,
+        hasAttachments: !!template.attachments?.length
+      },
+      recipients: {
+        count: recipients.length,
+        sample: recipients.slice(0, 2).map(r => ({
+          phoneNumber: r.phoneNumber,
+          variableCount: Object.keys(r.variables || {}).length
+        }))
+      },
+      options: {
+        ...options,
+        priority: options.priority || 'normal',
+        hasSchedule: !!options.scheduleTime
+      }
     });
 
     // Create and start batch
-    console.log('Template data:', template); // Debug log
     const batch = await createBatch(template, recipients, options, req);
     
-    console.log('Batch created:', batch.getState());
+    // Log batch creation result
+    console.log('Batch Created:', {
+      timestamp: new Date().toISOString(),
+      batchId: batch.id,
+      state: batch.getState(),
+      timing: {
+        created: batch.timing.created,
+        estimatedCompletion: batch.timing.estimated_completion
+      },
+      progress: batch.progress,
+      metrics: batch.metrics
+    });
 
     // Return initial status
     res.status(201).json({
@@ -102,6 +135,18 @@ router.post('/', async (req, res) => {
 router.get('/:batchId', (req, res) => {
   try {
     const { batchId } = req.params;
+    
+    // Log status request
+    console.log('Batch Status Request:', {
+      timestamp: new Date().toISOString(),
+      batchId,
+      requestId: req.headers['x-request-id'] || 'no-request-id',
+      auth: {
+        hasApiKey: !!req.apiKey,
+        keyPrefix: req.apiKey ? req.apiKey.substring(0, 8) + '...' : 'none'
+      }
+    });
+    
     const batch = getBatch(batchId);
 
     if (!batch) {
@@ -112,9 +157,24 @@ router.get('/:batchId', (req, res) => {
       });
     }
 
+    const state = batch.getState();
+    
+    // Log status response
+    console.log('Batch Status Response:', {
+      timestamp: new Date().toISOString(),
+      batchId,
+      status: state.status,
+      progress: state.progress,
+      metrics: state.metrics,
+      timing: {
+        created: state.timing.created,
+        elapsed: Date.now() - new Date(state.timing.created).getTime()
+      }
+    });
+
     res.json({
       success: true,
-      data: batch.getState()
+      data: state
     });
   } catch (error) {
     console.error('Error getting batch status:', error);

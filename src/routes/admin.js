@@ -1,5 +1,6 @@
 import express from 'express';
 import { employeeList } from '../utils/employeeList.js';
+import { getMessageHistory } from '../utils/messageHistory.js';
 
 const router = express.Router();
 
@@ -52,6 +53,28 @@ router.get('/employee-list/lookup/:phoneNumber', (req, res) => {
       data: {
         phoneNumber,
         ...employee
+      }
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      error: 'Invalid request',
+      message: error.message
+    });
+  }
+});
+
+// Get message history for a phone number
+router.get('/message-history/:phoneNumber', async (req, res) => {
+  try {
+    const { phoneNumber } = req.params;
+    const history = await getMessageHistory(phoneNumber);
+    
+    res.json({
+      success: true,
+      data: {
+        phoneNumber,
+        messages: history
       }
     });
   } catch (error) {

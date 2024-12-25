@@ -384,6 +384,37 @@ paths:
                         type: object
                       metrics:
                         type: object
+                        properties:
+                          messages_per_second:
+                            type: number
+                          success_rate:
+                            type: number
+                          credits_used:
+                            type: number
+                      results:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            phoneNumber:
+                              type: string
+                            status:
+                              type: string
+                              enum: [success, skipped, failed]
+                            reason:
+                              type: string
+                              enum: [duplicate_message]
+                              description: Present when status is 'skipped'
+                            error:
+                              type: string
+                              description: Present when status is 'failed'
+                            errorCategory:
+                              type: string
+                              enum: [rate_limit, invalid_request, network_error, timeout]
+                              description: Present when status is 'failed'
+                            timestamp:
+                              type: string
+                              format: date-time
 
   /api/messages/batch/{batchId}/analytics:
     get:
@@ -420,6 +451,106 @@ paths:
                         type: object
                       timing:
                         type: object
+
+  /api/admin/message-history/{phoneNumber}:
+    get:
+      summary: Get message history for a phone number
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: phoneNumber
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Phone number to get history for
+      responses:
+        '200':
+          description: Message history retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      phoneNumber:
+                        type: string
+                      messages:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            messageHash:
+                              type: string
+                            timestamp:
+                              type: string
+                              format: date-time
+                            templateId:
+                              type: string
+                            text:
+                              type: string
+
+  /api/admin/employee-list/lookup/{phoneNumber}:
+    get:
+      summary: Check if a phone number belongs to an employee
+      description: |
+        Employee numbers bypass duplicate prevention. Use this endpoint to check
+        if a number belongs to an employee before sending messages.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: phoneNumber
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Phone number to check
+      responses:
+        '200':
+          description: Employee found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      phoneNumber:
+                        type: string
+                      name:
+                        type: string
+                      store:
+                        type: string
+                      employeeId:
+                        type: string
+                      lastUpdated:
+                        type: string
+                        format: date-time
+        '404':
+          description: Not an employee number
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  error:
+                    type: string
+                    example: Not found
+                  message:
+                    type: string
+                    example: Phone number does not belong to an employee
 
   /api/messages/{phoneNumber}:
     get:

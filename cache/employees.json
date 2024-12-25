@@ -1,119 +1,119 @@
 {
-  "lastSync": "2024-12-25T15:40:40.317Z",
+  "lastSync": "2024-12-25T17:53:09.402Z",
   "employees": {
     "16462473130": {
       "name": "Sonny",
       "store": "STORE 6",
       "employeeId": "35",
-      "lastUpdated": "2024-12-25T15:40:40.317Z"
+      "lastUpdated": "2024-12-25T17:53:09.401Z"
     },
     "19173787871": {
       "name": "Janny",
       "store": "",
       "employeeId": "33",
-      "lastUpdated": "2024-12-25T15:40:40.317Z"
+      "lastUpdated": "2024-12-25T17:53:09.401Z"
     },
     "13322614266": {
       "name": " Lai Shi Hui",
       "store": "",
       "employeeId": "57",
-      "lastUpdated": "2024-12-25T15:40:40.317Z"
+      "lastUpdated": "2024-12-25T17:53:09.401Z"
     },
     "19178286811": {
       "name": "Ming",
       "store": "STORE5",
       "employeeId": "28",
-      "lastUpdated": "2024-12-25T15:40:40.317Z"
+      "lastUpdated": "2024-12-25T17:53:09.401Z"
     },
     "19176070612": {
       "name": "Tammy",
       "store": "STORE5",
       "employeeId": "27",
-      "lastUpdated": "2024-12-25T15:40:40.317Z"
+      "lastUpdated": "2024-12-25T17:53:09.401Z"
     },
     "16464921169": {
       "name": "Susan",
       "store": "UNIVERSAL",
       "employeeId": "34",
-      "lastUpdated": "2024-12-25T15:40:40.317Z"
+      "lastUpdated": "2024-12-25T17:53:09.401Z"
     },
     "19176786224": {
       "name": "Cynthia",
       "store": "",
       "employeeId": "21",
-      "lastUpdated": "2024-12-25T15:40:40.317Z"
+      "lastUpdated": "2024-12-25T17:53:09.401Z"
     },
     "13476811000": {
       "name": "Jesse",
       "store": "",
       "employeeId": "23",
-      "lastUpdated": "2024-12-25T15:40:40.317Z"
+      "lastUpdated": "2024-12-25T17:53:09.401Z"
     },
     "19173616928": {
       "name": "Ping",
       "store": "",
       "employeeId": "43",
-      "lastUpdated": "2024-12-25T15:40:40.317Z"
+      "lastUpdated": "2024-12-25T17:53:09.401Z"
     },
     "13478451486": {
       "name": "",
       "store": "",
       "employeeId": "63",
-      "lastUpdated": "2024-12-25T15:40:40.317Z"
+      "lastUpdated": "2024-12-25T17:53:09.401Z"
     },
     "16469618633": {
       "name": "",
       "store": "",
       "employeeId": "62",
-      "lastUpdated": "2024-12-25T15:40:40.317Z"
+      "lastUpdated": "2024-12-25T17:53:09.401Z"
     },
     "16319336202": {
       "name": "",
       "store": "STORE 4",
       "employeeId": "65",
-      "lastUpdated": "2024-12-25T15:40:40.317Z"
+      "lastUpdated": "2024-12-25T17:53:09.401Z"
     },
     "19173452898": {
       "name": "Judy",
       "store": "STORE5",
       "employeeId": "67",
-      "lastUpdated": "2024-12-25T15:40:40.317Z"
+      "lastUpdated": "2024-12-25T17:53:09.401Z"
     },
     "19178807470": {
       "name": "Vivian",
       "store": "",
       "employeeId": "68",
-      "lastUpdated": "2024-12-25T15:40:40.317Z"
+      "lastUpdated": "2024-12-25T17:53:09.401Z"
     },
     "16263635272": {
       "name": "Nancy",
       "store": "",
       "employeeId": "71",
-      "lastUpdated": "2024-12-25T15:40:40.317Z"
+      "lastUpdated": "2024-12-25T17:53:09.401Z"
     },
     "13477986436": {
       "name": "Amy",
       "store": "",
       "employeeId": "73",
-      "lastUpdated": "2024-12-25T15:40:40.317Z"
+      "lastUpdated": "2024-12-25T17:53:09.401Z"
     },
     "16266778205": {
       "name": "Leo",
       "store": "",
       "employeeId": "74",
-      "lastUpdated": "2024-12-25T15:40:40.317Z"
+      "lastUpdated": "2024-12-25T17:53:09.401Z"
     },
     "14109008232": {
       "name": "",
       "store": "",
       "employeeId": "76",
-      "lastUpdated": "2024-12-25T15:40:40.317Z"
+      "lastUpdated": "2024-12-25T17:53:09.401Z"
     },
     "19099906306": {
       "name": "Judy",
       "store": "",
       "employeeId": "83",
-      "lastUpdated": "2024-12-25T15:40:40.317Z"
+      "lastUpdated": "2024-12-25T17:53:09.401Z"
     }
   }
 }
