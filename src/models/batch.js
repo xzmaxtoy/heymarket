@@ -2,7 +2,7 @@ import { promisify } from 'util';
 import axios from 'axios';
 import config from '../config/config.js';
 import { addHeymarketAuth } from '../middleware/auth.js';
-import { getTemplate } from './template.js';
+import { Template, getTemplate } from './template.js';
 
 const sleep = promisify(setTimeout);
 
@@ -238,25 +238,40 @@ class Batch {
  * Create and start a new batch
  */
 async function createBatch(templateData, recipients, options, auth) {
+  console.log('Creating batch with template data:', templateData);
+  
   let template;
   
-  if (typeof templateData === 'string') {
-    // If templateData is a string, it's a template ID
-    template = await getTemplate(templateData);
-    if (!template) {
-      throw new Error('Template not found');
+  if (!templateData) {
+    console.error('Template data is missing');
+    throw new Error('Template is required');
+  }
+
+  try {
+    if (templateData.id) {
+      // If template has ID, fetch from storage
+      console.log('Fetching template with ID:', templateData.id);
+      template = await getTemplate(templateData.id);
+      if (!template) {
+        throw new Error('Template not found');
+      }
+    } else if (templateData.text) {
+      // If template has text, create temporary template
+      console.log('Creating temporary template with text:', templateData.text);
+      template = new Template(
+        `temp_${Date.now()}`,
+        templateData.text,
+        templateData.attachments || [],
+        templateData.isPrivate || false,
+        templateData.author || null
+      );
+      console.log('Temporary template created:', template);
+    } else {
+      throw new Error('Template must have either id or text');
     }
-  } else if (typeof templateData === 'object' && templateData.text) {
-    // If templateData is an object with text, create a temporary template
-    template = new Template(
-      `temp_${Date.now()}`,
-      templateData.text,
-      templateData.attachments,
-      templateData.isPrivate,
-      templateData.author
-    );
-  } else {
-    throw new Error('Invalid template data. Provide either template ID or template object with text');
+  } catch (error) {
+    console.error('Error creating/fetching template:', error);
+    throw error;
   }
 
   const batchId = options.batchId || `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;

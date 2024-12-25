@@ -1,3 +1,5 @@
+import { loadTemplates, saveTemplate, getTemplate as getStoredTemplate, deleteTemplate as removeTemplate } from '../utils/templateCache.js';
+
 /**
  * Message template model with variable substitution and validation
  */
@@ -89,8 +91,6 @@ class Template {
     };
   }
 }
-
-import { loadTemplates, saveTemplate, getTemplate as getStoredTemplate, deleteTemplate as removeTemplate } from '../utils/templateCache.js';
 
 /**
  * Create a new template

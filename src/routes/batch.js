@@ -60,6 +60,7 @@ router.post('/', async (req, res) => {
     });
 
     // Create and start batch
+    console.log('Template data:', template); // Debug log
     const batch = await createBatch(template, recipients, options, req);
     
     console.log('Batch created:', batch.getState());
