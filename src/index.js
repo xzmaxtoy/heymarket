@@ -34,6 +34,12 @@ app.use(limiter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Import request logger
+import { requestLogger } from './middleware/requestLogger.js';
+
+// Apply request logger middleware
+app.use(requestLogger);
+
 // Root route - no auth required
 app.get('/', (req, res) => {
   res.json({ status: 'ok', message: 'API is running' });
