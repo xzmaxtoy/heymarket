@@ -9,11 +9,20 @@ router.post('/', async (req, res) => {
     const { template, recipients, options = {} } = req.body;
 
     // Validate request
-    if (!template?.id || !Array.isArray(recipients) || recipients.length === 0) {
+    if (!Array.isArray(recipients) || recipients.length === 0) {
       return res.status(400).json({
         success: false,
         error: 'Invalid request',
-        message: 'Template ID and non-empty recipients array are required'
+        message: 'Non-empty recipients array is required'
+      });
+    }
+
+    // Validate template
+    if (!template?.id && !template?.text) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid request',
+        message: 'Either template ID or template text is required'
       });
     }
 
@@ -45,13 +54,13 @@ router.post('/', async (req, res) => {
     }
 
     console.log('Creating batch with:', {
-      templateId: template.id,
+      template: template.id ? `templateId: ${template.id}` : `text: ${template.text}`,
       recipientsCount: recipients.length,
       options
     });
 
     // Create and start batch
-    const batch = await createBatch(template.id, recipients, options, req);
+    const batch = await createBatch(template, recipients, options, req);
     
     console.log('Batch created:', batch.getState());
 

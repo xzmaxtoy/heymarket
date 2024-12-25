@@ -253,11 +253,32 @@ paths:
                   description: Optional unique identifier for idempotency
                 template:
                   type: object
-                  required:
-                    - id
-                  properties:
-                    id:
-                      type: string
+                  oneOf:
+                    - type: object
+                      required:
+                        - id
+                      properties:
+                        id:
+                          type: string
+                          description: ID of an existing template
+                    - type: object
+                      required:
+                        - text
+                      properties:
+                        text:
+                          type: string
+                          description: Custom message text with variables in {{variable}} format
+                        attachments:
+                          type: array
+                          description: Optional array of media URLs
+                          items:
+                            type: string
+                        isPrivate:
+                          type: boolean
+                          description: Whether messages are private
+                        author:
+                          type: string
+                          description: Author for the messages
                 recipients:
                   type: array
                   items:

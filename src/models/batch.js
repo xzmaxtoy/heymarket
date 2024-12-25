@@ -237,10 +237,26 @@ class Batch {
 /**
  * Create and start a new batch
  */
-async function createBatch(templateId, recipients, options, auth) {
-  const template = await getTemplate(templateId);
-  if (!template) {
-    throw new Error('Template not found');
+async function createBatch(templateData, recipients, options, auth) {
+  let template;
+  
+  if (typeof templateData === 'string') {
+    // If templateData is a string, it's a template ID
+    template = await getTemplate(templateData);
+    if (!template) {
+      throw new Error('Template not found');
+    }
+  } else if (typeof templateData === 'object' && templateData.text) {
+    // If templateData is an object with text, create a temporary template
+    template = new Template(
+      `temp_${Date.now()}`,
+      templateData.text,
+      templateData.attachments,
+      templateData.isPrivate,
+      templateData.author
+    );
+  } else {
+    throw new Error('Invalid template data. Provide either template ID or template object with text');
   }
 
   const batchId = options.batchId || `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
