@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+cache/
 package-lock.json
 package-lock 2.json
 
