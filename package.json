@@ -10,7 +10,7 @@
     "build": "npm install",
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "eslint .",
-    "deploy": "zip -r deploy.zip . -x \"node_modules/*\" \".*\" && curl -X POST -u $AZURE_DEPLOYMENT_USERNAME:$AZURE_DEPLOYMENT_PASSWORD --data-binary @deploy.zip https://heymarket-api-dpbubhdceqb3fvge.canadaeast-01.scm.azurewebsites.net/api/zipdeploy"
+    "deploy": "zip -r deploy.zip . -x \"node_modules/*\" \".*\" && curl -X POST -u $AZURE_DEPLOYMENT_USERNAME:$AZURE_DEPLOYMENT_PASSWORD --data-binary @deploy.zip https://heymarket-api-dpbubhdceqb3fvge.canadaeast-01.azurewebsites.net/api/zipdeploy"
   },
   "engines": {
     "node": "18.x"
