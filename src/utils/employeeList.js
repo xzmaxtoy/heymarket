@@ -75,6 +75,12 @@ class EmployeeList {
         await this.loadFromCache();
       }
       
+      // Skip sync if URL not configured
+      if (!config.employeeListUrl) {
+        console.log('Employee list URL not configured, skipping sync');
+        return;
+      }
+      
       // Fetch latest CSV
       const response = await axios.get(config.employeeListUrl);
       const csv = response.data;

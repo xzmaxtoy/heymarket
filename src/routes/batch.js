@@ -1,7 +1,50 @@
 import express from 'express';
-import { createBatch, getBatch } from '../models/batch.js';
+import { createBatch, getBatch, batches } from '../models/batch.js';
+import { requestLogger, getRequestHistory } from '../middleware/requestLogger.js';
 
 const router = express.Router();
+
+// Get request history and active batches
+router.get('/history', (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    const history = getRequestHistory(limit);
+
+    // Get all active batches from memory
+    const activeBatches = [];
+    batches.forEach((batch, id) => {
+      activeBatches.push({
+        id: id,
+        status: batch.status,
+        created: batch.timing.created,
+        template: {
+          id: batch.template.id,
+          text: batch.template.text
+        },
+        progress: batch.progress,
+        metrics: batch.metrics
+      });
+    });
+
+    // Log response for debugging
+    const response = {
+      success: true,
+      data: {
+        history: history,
+        activeBatches: activeBatches
+      }
+    };
+    console.log('History Response:', JSON.stringify(response, null, 2));
+    res.json(response);
+  } catch (error) {
+    console.error('Error getting history:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get history',
+      message: error.message
+    });
+  }
+});
 
 // Create batch
 router.post('/', async (req, res) => {

@@ -371,4 +371,4 @@ function getBatch(batchId) {
   return batches.get(batchId);
 }
 
-export { createBatch, getBatch };
+export { createBatch, getBatch, batches };
