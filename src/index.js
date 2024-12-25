@@ -6,9 +6,7 @@ import config from './config/config.js';
 import { authenticate } from './middleware/auth.js';
 import { errorHandler, notFound } from './middleware/error.js';
 import messagesRouter from './routes/messages.js';
-import templatesRouter from './routes/templates.js';
 import batchRouter from './routes/batch.js';
-import adminRouter from './routes/admin.js';
 
 const app = express();
 
@@ -49,11 +47,9 @@ app.get('/health', (req, res) => {
 // Authentication middleware only for API routes
 app.use('/api', authenticate);
 
-// API routes - order matters, more specific routes first
-app.use('/api/messages/batch', batchRouter);
-app.use('/api/templates', templatesRouter);
+// API routes
 app.use('/api/messages', messagesRouter);
-app.use('/api/admin', adminRouter);
+app.use('/api/batch', batchRouter);
 
 // Error handling
 app.use(notFound);

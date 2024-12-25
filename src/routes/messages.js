@@ -502,7 +502,16 @@ router.get('/:phoneNumber/all', async (req, res, next) => {
   }
 });
 
-// Send a message - must be placed before /:phoneNumber route to avoid conflicts
+// Mount batch router
+import batchRouter from './batch.js';
+router.use('/batch', (req, res, next) => {
+  req.originalUrl = req.originalUrl.replace('/messages/batch', '/batch');
+  req.baseUrl = '/api/batch';
+  req.url = '/';
+  batchRouter(req, res, next);
+});
+
+// Send a message
 router.post('/send', async (req, res, next) => {
   try {
     const { phoneNumber, message, attachments, isPrivate, author } = req.body;
@@ -516,11 +525,7 @@ router.post('/send', async (req, res, next) => {
       });
     }
 
-    // Fixed values for inbox_id and creator_id
-    const inboxId = 21571;
-    const creatorId = 45507;
-
-    // Validate phone number format and ensure it has 11 digits with "1" prefix
+    // Format phone number by adding "1" prefix if needed
     let formattedPhone = phoneNumber.replace(/\D/g, '');
     if (formattedPhone.length === 10) {
       formattedPhone = '1' + formattedPhone;
@@ -534,20 +539,16 @@ router.post('/send', async (req, res, next) => {
       });
     }
 
-    // Generate a unique local_id
-    const localId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
     // Prepare message request
     const messageConfig = {
       ...addHeymarketAuth(req),
       url: `${config.heymarketBaseUrl}/message/send`,
       method: 'POST',
       data: {
-        inbox_id: inboxId,
-        creator_id: creatorId,
+        inbox_id: 21571,
+        creator_id: 45507,
         phone_number: formattedPhone,
         text: message,
-        local_id: localId,
         ...(isPrivate && { private: true }),
         ...(author && { author }),
         ...(attachments && { media_url: attachments[0] }) // Assuming first attachment is media URL
@@ -555,21 +556,30 @@ router.post('/send', async (req, res, next) => {
       timeout: 10000
     };
 
+    console.log('Message request:', {
+      ...messageConfig.data,
+      url: messageConfig.url
+    });
+
     // Send message
     const response = await axios(messageConfig);
+    
+    console.log('API Response:', {
+      status: response.status,
+      data: response.data,
+      headers: response.headers
+    });
 
     // Return success response
     res.json({
       success: true,
       data: {
         messageId: response.data.id,
-        status: response.data.status,
-        timestamp: response.data.created_at || new Date().toISOString(),
+        status: response.data.status || 'pending',
+        timestamp: new Date().toISOString(),
         to: formattedPhone,
         text: message,
-        localId,
-        inboxId,
-        creatorId
+        response: response.data // Include full response for debugging
       }
     });
   } catch (error) {
@@ -610,6 +620,7 @@ router.post('/send', async (req, res, next) => {
     });
   }
 });
+
 
 // Get last message and customer ID for a phone number
 router.get('/:phoneNumber', async (req, res, next) => {

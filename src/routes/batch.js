@@ -26,16 +26,29 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Validate each recipient
-    for (const recipient of recipients) {
+    // Validate and format each recipient's phone number
+    const formattedRecipients = recipients.map(recipient => {
       if (!recipient.phoneNumber || !recipient.variables) {
-        return res.status(400).json({
-          success: false,
-          error: 'Invalid recipient format',
-          message: 'Each recipient must have phoneNumber and variables'
-        });
+        throw new Error('Each recipient must have phoneNumber and variables');
       }
-    }
+
+      // Format phone number by removing non-digits
+      let phone = recipient.phoneNumber.replace(/\D/g, '');
+
+      // Validate phone number format
+      if (phone.length === 10) {
+        phone = '1' + phone;
+      } else if (phone.length === 11 && !phone.startsWith('1')) {
+        phone = '1' + phone.substring(1);
+      } else if (phone.length !== 11 || !phone.startsWith('1')) {
+        throw new Error('Phone number must be 10 digits or 11 digits starting with 1');
+      }
+
+      return {
+        ...recipient,
+        phoneNumber: phone
+      };
+    });
 
     // Check for duplicate batch ID
     if (options.batchId) {
@@ -83,7 +96,7 @@ router.post('/', async (req, res) => {
     });
 
     // Create and start batch
-    const batch = await createBatch(template, recipients, options, req);
+    const batch = await createBatch(template, formattedRecipients, options, req);
     
     // Log batch creation result
     console.log('Batch Created:', {

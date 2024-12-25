@@ -344,10 +344,22 @@ async function createBatch(templateData, recipients, options, auth) {
     });
   });
 
-  // Clean up old batches after 24 hours
+  // Clean up old batches after 1 hour
   setTimeout(() => {
     batches.delete(batchId);
-  }, 24 * 60 * 60 * 1000);
+  }, 60 * 60 * 1000);
+
+  // Log batch creation
+  console.log('Created batch:', {
+    id: batchId,
+    template: {
+      id: template.id,
+      text: template.text,
+      author: template.author
+    },
+    recipientCount: recipients.length,
+    options
+  });
 
   return batch;
 }

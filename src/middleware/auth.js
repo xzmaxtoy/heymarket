@@ -5,6 +5,11 @@ import jwt from 'jsonwebtoken';
  * Authentication middleware to validate requests to our backend
  */
 export const authenticate = (req, res, next) => {
+  // Skip auth for root and health check routes
+  if (req.path === '/' || req.path === '/health') {
+    return next();
+  }
+
   try {
     const authHeader = req.headers.authorization;
 
@@ -57,13 +62,19 @@ export const addHeymarketAuth = (req) => {
     timestamp: new Date().toISOString()
   });
 
+  // Get creator and inbox IDs from request headers
+  const creatorId = req.headers['x-creator-id'];
+  const inboxId = req.headers['x-inbox-id'];
+
   // Use the API key from environment for Heymarket API requests
   return {
     headers: {
       'Authorization': `Bearer ${config.heymarketApiKey}`,
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'X-Request-Id': requestId
+      'X-Request-Id': requestId,
+      ...(creatorId && { 'X-Creator-Id': creatorId }),
+      ...(inboxId && { 'X-Inbox-Id': inboxId })
     },
     validateStatus: function (status) {
       return status >= 200 && status < 500;
