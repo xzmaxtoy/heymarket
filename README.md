@@ -53,6 +53,87 @@ npm start
 
 ## API Endpoints
 
+### Batch Operations
+
+#### Create Batch
+```
+POST /api/messages/batch
+```
+Create a batch of messages using a template.
+
+Request Body:
+```json
+{
+  "template": {
+    "text": "Hello {{name}}, your order {{orderId}} is ready",
+    "author": "Support Team"
+  },
+  "recipients": [
+    {
+      "phoneNumber": "1234567890",
+      "variables": {
+        "name": "John",
+        "orderId": "ORD123"
+      }
+    }
+  ],
+  "options": {
+    "priority": "high",
+    "retryStrategy": {
+      "maxAttempts": 3,
+      "backoffMinutes": 1
+    }
+  }
+}
+```
+
+#### Get Batch Status
+```
+GET /api/batch/:batchId
+```
+Get the status of a batch operation.
+
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "batchId": "batch_123",
+    "status": "completed",
+    "progress": {
+      "total": 1,
+      "pending": 0,
+      "processing": 0,
+      "completed": 1,
+      "failed": 0
+    },
+    "timing": {
+      "created": "2024-12-25T20:09:09.554Z",
+      "started": "2024-12-25T20:09:09.555Z",
+      "estimated_completion": "2024-12-25T20:09:10.055Z"
+    }
+  }
+}
+```
+
+#### Get Batch Analytics
+```
+GET /api/batch/:batchId/analytics
+```
+Get analytics for a batch operation.
+
+#### Get Batch Results
+```
+GET /api/batch/:batchId/results
+```
+Get detailed results for each message in the batch.
+
+#### Get Batch Errors
+```
+GET /api/batch/:batchId/errors
+```
+Get error details for failed messages in the batch.
+
 ### Health Check
 ```
 GET /health
@@ -207,8 +288,20 @@ src/
 ├── middleware/
 │   ├── auth.js          # Authentication middleware
 │   └── error.js         # Error handling middleware
+├── models/
+│   ├── batch.js         # Batch processing model
+│   └── template.js      # Template management model
 ├── routes/
-│   └── messages.js      # Message-related routes
+│   ├── admin.js         # Admin routes
+│   ├── batch.js         # Batch operation routes
+│   ├── messages.js      # Message-related routes
+│   └── templates.js     # Template management routes
+├── utils/
+│   ├── employeeList.js  # Employee management
+│   ├── fileCache.js     # File caching utilities
+│   ├── messageHistory.js # Message history tracking
+│   ├── messageQueue.js  # Message queue management
+│   └── templateCache.js # Template caching
 └── index.js             # Application entry point
 ```
 
@@ -221,14 +314,25 @@ src/
 az login
 ```
 
-2. Deploy the application:
+2. Create deployment package:
 ```bash
-az webapp up --name heymarket-api --resource-group your-resource-group --runtime "NODE|18-lts" --sku F1 --location your-location
+npm run build
+zip -r deploy.zip . -x "node_modules/*" ".*"
 ```
 
-3. Configure environment variables in Azure:
+3. Deploy using Azure CLI:
 ```bash
-az webapp config appsettings set --name heymarket-api --resource-group your-resource-group --settings NODE_ENV=production HEYMARKET_API_KEY=your-api-key CORS_ORIGIN=your-domain
+az webapp deployment source config-zip --resource-group bradoriaapi2025group --name heymarket-api --src deploy.zip
+```
+
+4. Configure environment variables in Azure:
+```bash
+az webapp config appsettings set --name heymarket-api --resource-group bradoriaapi2025group --settings NODE_ENV=production HEYMARKET_API_KEY=your-api-key CORS_ORIGIN=your-domain
+```
+
+Note: The deployment script is included in package.json for convenience:
+```bash
+npm run deploy
 ```
 
 ### Current Deployment

@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.0] - 2024-12-25
+
+### Added
+- Message duplicate prevention system
+- Employee list integration for duplicate prevention exclusions
+- Azure deployment configuration
+- Deployment script in package.json
+
+### Fixed
+- Batch endpoint routing to support both /api/messages/batch and /api/batch paths
+- Phone number formatting (10-digit to 11-digit conversion)
+- Batch cleanup timing updated to 1 hour
+- Added detailed logging for batch operations
+
+### Changed
+- Updated documentation for batch operations
+- Enhanced API documentation with phone number format clarification
+- Improved deployment instructions
+
 ## [2.0.0] - 2024-12-25
 
 ### Added
