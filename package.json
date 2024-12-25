@@ -1,6 +1,6 @@
 {
   "name": "heymarket-endpoint",
-  "version": "1.0.0",
+  "version": "2.1.0",
   "description": "Heymarket API endpoint for message management",
   "main": "src/index.js",
   "type": "module",
