@@ -3,6 +3,8 @@ import axios from 'axios';
 import config from '../config/config.js';
 import { addHeymarketAuth } from '../middleware/auth.js';
 import { Template, getTemplate } from './template.js';
+import { isDuplicateMessage, recordMessage } from '../utils/messageHistory.js';
+import { employeeList } from '../utils/employeeList.js';
 
 const sleep = promisify(setTimeout);
 
@@ -94,6 +96,34 @@ class Batch {
             await sleep(backoffTime);
           }
 
+          // Check for duplicates (skip for employees)
+          if (!employeeList.isEmployee(recipient.phoneNumber)) {
+            console.log('Checking duplicates for non-employee:', recipient.phoneNumber);
+            const isDuplicate = await isDuplicateMessage(
+              recipient.phoneNumber,
+              this.template.id,
+              this.template.text,
+              recipient.variables
+            );
+            
+            if (isDuplicate) {
+              console.log('Duplicate message detected, skipping:', recipient.phoneNumber);
+              this.results.push({
+                phoneNumber: recipient.phoneNumber,
+                status: 'skipped',
+                reason: 'duplicate_message',
+                timestamp: new Date().toISOString()
+              });
+              this.progress.completed++;  // Count as completed
+              success = true;  // Skip further attempts
+              continue;
+            } else {
+              console.log('No duplicate found, proceeding with send');
+            }
+          } else {
+            console.log('Employee detected, skipping duplicate check:', recipient.phoneNumber);
+          }
+
           // Create message from template
           const message = this.template.createMessage(
             recipient.phoneNumber,
@@ -109,7 +139,8 @@ class Batch {
             data: {
               inbox_id: 21571,
               creator_id: 45507,
-              phone_number: message.phoneNumber,
+              channel: 'sms',
+              phone_number: message.phoneNumber.startsWith('1') ? message.phoneNumber : `1${message.phoneNumber}`,
               text: message.message,
               local_id: `${this.id}_${Date.now()}`,
               ...(message.isPrivate && { private: true }),
@@ -119,8 +150,10 @@ class Batch {
             timeout: 10000
           };
 
+          const formattedPhone = message.phoneNumber.startsWith('1') ? message.phoneNumber : `1${message.phoneNumber}`;
           console.log('Sending message:', {
-            phoneNumber: message.phoneNumber,
+            originalPhone: message.phoneNumber,
+            formattedPhone: formattedPhone,
             text: message.message,
             attempt: attempts + 1
           });
@@ -146,6 +179,16 @@ class Batch {
           successCount++;
           this.progress.completed++;
           this.metrics.credits_used++;
+
+          // Record sent message for duplicate tracking
+          if (!employeeList.isEmployee(recipient.phoneNumber)) {
+            await recordMessage(
+              recipient.phoneNumber,
+              this.template.id,
+              this.template.text,
+              recipient.variables
+            );
+          }
 
         } catch (error) {
           console.error('Error sending message:', {

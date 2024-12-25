@@ -8,6 +8,7 @@ import { errorHandler, notFound } from './middleware/error.js';
 import messagesRouter from './routes/messages.js';
 import templatesRouter from './routes/templates.js';
 import batchRouter from './routes/batch.js';
+import adminRouter from './routes/admin.js';
 
 const app = express();
 
@@ -52,6 +53,7 @@ app.use('/api', authenticate);
 app.use('/api/messages/batch', batchRouter);
 app.use('/api/templates', templatesRouter);
 app.use('/api/messages', messagesRouter);
+app.use('/api/admin', adminRouter);
 
 // Error handling
 app.use(notFound);
