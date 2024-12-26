@@ -6,6 +6,21 @@ info:
     API for interacting with Heymarket messaging service.
     Supports single messages, templates, and batch operations.
 
+    ## Template Variables
+    When using templates, variables are specified in {{variable}} format. Variables must match exactly between the template and the provided variables object.
+
+    Example:
+    ```
+    Template: "Hello {{name}}, your points: {{points}}"
+    Variables: { "name": "John", "points": "100" }
+    ```
+
+    Note: Dot notation (e.g. {{customer.name}}) requires the variable name to match exactly:
+    ```
+    Template: "Hello {{customer.name}}"
+    Variables: { "customer.name": "John" }  # Must match template variable exactly
+    ```
+
 servers:
   - url: https://heymarket-api-dpbubhdceqb3fvge.canadaeast-01.azurewebsites.net
     description: Production server
@@ -29,6 +44,24 @@ components:
           type: string
 
 paths:
+  /:
+    get:
+      summary: API status check
+      responses:
+        '200':
+          description: API status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  message:
+                    type: string
+                    example: API is running
+
   /health:
     get:
       summary: Health check endpoint
@@ -47,6 +80,177 @@ paths:
                     type: string
                     format: date-time
 
+  /api/messages/range:
+    get:
+      summary: Get messages within a date range
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: Start date (ISO format)
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: End date (ISO format)
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+          description: Page number for pagination
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+          description: Number of messages per page
+      responses:
+        '200':
+          description: Messages retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        text:
+                          type: string
+                        timestamp:
+                          type: string
+                          format: date-time
+                        phoneNumber:
+                          type: string
+
+    post:
+      summary: Get messages within a date range with additional filtering
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: Start date (ISO format)
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: End date (ISO format)
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+          description: Page number for pagination
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+          description: Number of messages per page
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                filters:
+                  type: object
+                  description: Additional filters for messages
+      responses:
+        '200':
+          description: Messages retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        text:
+                          type: string
+                        timestamp:
+                          type: string
+                          format: date-time
+                        phoneNumber:
+                          type: string
+
+  /api/messages/{phoneNumber}/all:
+    get:
+      summary: Get all messages for a specific phone number
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: phoneNumber
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 10-digit phone number
+      responses:
+        '200':
+          description: Messages retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        text:
+                          type: string
+                        timestamp:
+                          type: string
+                          format: date-time
+                        status:
+                          type: string
+                        type:
+                          type: string
+                        channel:
+                          type: string
+
   /api/messages/send:
     post:
       summary: Send a message to a phone number
@@ -62,10 +266,10 @@ paths:
                 - phoneNumber
                 - message
               properties:
-                      phoneNumber:
-                        type: string
-                        description: Target phone number (10 or 11 digits). If 10 digits are provided, '1' will be prepended automatically.
-                        example: "3476811000"
+                phoneNumber:
+                  type: string
+                  description: Target phone number (10 or 11 digits). If 10 digits are provided, '1' will be prepended automatically.
+                  example: "3476811000"
                 message:
                   type: string
                   description: Message text to send
@@ -109,112 +313,21 @@ paths:
                       text:
                         type: string
 
-  /api/templates:
-    post:
-      summary: Create a message template
-      security:
-        - ApiKeyAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - text
-              properties:
-                text:
-                  type: string
-                  description: Template text with variables in {{variable}} format
-                  example: "Hello {{name}}, your order {{orderId}} is ready"
-                attachments:
-                  type: array
-                  description: Optional array of attachment URLs
-                  items:
-                    type: string
-                isPrivate:
-                  type: boolean
-                  description: Whether messages using this template are private
-                author:
-                  type: string
-                  description: Default author for messages using this template
-      responses:
-        '201':
-          description: Template created successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: object
-                    properties:
-                      id:
-                        type: string
-                      text:
-                        type: string
-                      variables:
-                        type: array
-                        items:
-                          type: string
-
+  /api/messages/{phoneNumber}:
     get:
-      summary: List all templates
-      security:
-        - ApiKeyAuth: []
-      responses:
-        '200':
-          description: Templates retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        id:
-                          type: string
-                        text:
-                          type: string
-                        variables:
-                          type: array
-                          items:
-                            type: string
-
-  /api/templates/{templateId}/preview:
-    post:
-      summary: Preview a template with variables
+      summary: Get last message and customer info for a phone number
       security:
         - ApiKeyAuth: []
       parameters:
-        - name: templateId
+        - name: phoneNumber
           in: path
           required: true
           schema:
             type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                variables:
-                  type: object
-                  additionalProperties:
-                    type: string
+          description: 10-digit phone number
       responses:
         '200':
-          description: Template preview generated
+          description: Message info retrieved successfully
           content:
             application/json:
               schema:
@@ -226,12 +339,32 @@ paths:
                   data:
                     type: object
                     properties:
-                      text:
+                      customerId:
                         type: string
-                      variables:
-                        type: array
-                        items:
-                          type: string
+                      lastMessage:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                          text:
+                            type: string
+                          date:
+                            type: string
+                            format: date-time
+                          sender:
+                            type: string
+                          status:
+                            type: string
+                          type:
+                            type: string
+                          channel:
+                            type: string
+                      messageStatus:
+                        type: string
+                      totalMessages:
+                        type: integer
+                      phoneNumber:
+                        type: string
 
   /api/messages/batch:
     post:
@@ -267,7 +400,12 @@ paths:
                       properties:
                         text:
                           type: string
-                          description: Custom message text with variables in {{variable}} format
+                          description: |
+                            Custom message text with variables in {{variable}} format.
+                            Variables in the template must match exactly with the variables provided.
+                            Example: "Hello {{name}}" requires variables: {"name": "John"}
+                            Example with dot notation: "Hello {{customer.name}}" requires variables: {"customer.name": "John"}
+                          example: "Hello {{name}}, your points: {{points}}"
                         attachments:
                           type: array
                           description: Optional array of media URLs
@@ -291,8 +429,14 @@ paths:
                         type: string
                       variables:
                         type: object
+                        description: |
+                          Variables must match template variables exactly.
+                          For dot notation (e.g. {{customer.name}}), use "customer.name" as the key.
                         additionalProperties:
                           type: string
+                        example:
+                          name: "John"
+                          points: "100"
                       overrides:
                         type: object
                         properties:
@@ -349,6 +493,91 @@ paths:
                           failed:
                             type: integer
 
+  /api/batch/history:
+    get:
+      summary: Get batch request history and active batches
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+          description: Number of history entries to return
+      responses:
+        '200':
+          description: History retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      history:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            timestamp:
+                              type: string
+                              format: date-time
+                            method:
+                              type: string
+                            path:
+                              type: string
+                            body:
+                              type: object
+                            query:
+                              type: object
+                      activeBatches:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                            status:
+                              type: string
+                            created:
+                              type: string
+                              format: date-time
+                            template:
+                              type: object
+                              properties:
+                                id:
+                                  type: string
+                                text:
+                                  type: string
+                            progress:
+                              type: object
+                              properties:
+                                total:
+                                  type: integer
+                                pending:
+                                  type: integer
+                                processing:
+                                  type: integer
+                                completed:
+                                  type: integer
+                                failed:
+                                  type: integer
+                            metrics:
+                              type: object
+                              properties:
+                                messages_per_second:
+                                  type: number
+                                success_rate:
+                                  type: number
+                                credits_used:
+                                  type: number
+
   /api/batch/{batchId}:
     get:
       summary: Get batch operation status
@@ -391,6 +620,34 @@ paths:
                             type: number
                           credits_used:
                             type: number
+
+  /api/batch/{batchId}/results:
+    get:
+      summary: Get results of a batch operation
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Batch results retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      batchId:
+                        type: string
                       results:
                         type: array
                         items:
@@ -401,24 +658,17 @@ paths:
                             status:
                               type: string
                               enum: [success, skipped, failed]
-                            reason:
+                            messageId:
                               type: string
-                              enum: [duplicate_message]
-                              description: Present when status is 'skipped'
-                            error:
-                              type: string
-                              description: Present when status is 'failed'
-                            errorCategory:
-                              type: string
-                              enum: [rate_limit, invalid_request, network_error, timeout]
-                              description: Present when status is 'failed'
                             timestamp:
                               type: string
                               format: date-time
+                            attempts:
+                              type: integer
 
   /api/batch/{batchId}/analytics:
     get:
-      summary: Get batch analytics
+      summary: Get analytics for a batch operation
       security:
         - ApiKeyAuth: []
       parameters:
@@ -452,21 +702,20 @@ paths:
                       timing:
                         type: object
 
-  /api/admin/message-history/{phoneNumber}:
+  /api/batch/{batchId}/errors:
     get:
-      summary: Get message history for a phone number
+      summary: Get errors from a batch operation
       security:
         - ApiKeyAuth: []
       parameters:
-        - name: phoneNumber
+        - name: batchId
           in: path
           required: true
           schema:
             type: string
-          description: Phone number to get history for
       responses:
         '200':
-          description: Message history retrieved successfully
+          description: Batch errors retrieved successfully
           content:
             application/json:
               schema:
@@ -478,135 +727,24 @@ paths:
                   data:
                     type: object
                     properties:
-                      phoneNumber:
+                      batchId:
                         type: string
-                      messages:
+                      total:
+                        type: integer
+                      errors:
                         type: array
                         items:
                           type: object
                           properties:
-                            messageHash:
+                            phoneNumber:
                               type: string
+                            error:
+                              type: string
+                            errorCategory:
+                              type: string
+                              enum: [rate_limit, invalid_request, network_error, timeout]
                             timestamp:
                               type: string
                               format: date-time
-                            templateId:
-                              type: string
-                            text:
-                              type: string
-
-  /api/admin/employee-list/lookup/{phoneNumber}:
-    get:
-      summary: Check if a phone number belongs to an employee
-      description: |
-        Employee numbers bypass duplicate prevention. Use this endpoint to check
-        if a number belongs to an employee before sending messages.
-      security:
-        - ApiKeyAuth: []
-      parameters:
-        - name: phoneNumber
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Phone number to check
-      responses:
-        '200':
-          description: Employee found
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: object
-                    properties:
-                        phoneNumber:
-                          type: string
-                          description: Target phone number (10 or 11 digits). If 10 digits are provided, '1' will be prepended automatically.
-                          example: "3476811000"
-                      variables:
-                        type: object
-                        additionalProperties:
-                          type: string
-                        example: {
-                          "name": "John",
-                          "orderId": "ORD123"
-                        }
-                      employeeId:
-                        type: string
-                      lastUpdated:
-                        type: string
-                        format: date-time
-        '404':
-          description: Not an employee number
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: false
-                  error:
-                    type: string
-                    example: Not found
-                  message:
-                    type: string
-                    example: Phone number does not belong to an employee
-
-  /api/messages/{phoneNumber}:
-    get:
-      summary: Get last message and customer info for a phone number
-      security:
-        - ApiKeyAuth: []
-      parameters:
-        - name: phoneNumber
-          in: path
-          required: true
-          schema:
-            type: string
-          description: 10-digit phone number
-      responses:
-        '200':
-          description: Message info retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: object
-                    properties:
-                      customerId:
-                        type: string
-                      lastMessage:
-                        type: object
-                        properties:
-                          id:
-                            type: string
-                          text:
-                            type: string
-                          date:
-                            type: string
-                            format: date-time
-                          sender:
-                            type: string
-                          status:
-                            type: string
-                          type:
-                            type: string
-                          channel:
-                            type: string
-                      messageStatus:
-                        type: string
-                      totalMessages:
-                        type: integer
-                      phoneNumber:
-                        type: string
+                            attempts:
+                              type: integer

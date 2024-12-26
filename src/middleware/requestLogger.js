@@ -23,15 +23,7 @@ export const requestLogger = (req, res, next) => {
     method: req.method,
     path: req.path,
     headers: req.headers,
-    body: req.method === 'POST' ? {
-      template: req.body.template,
-      recipientCount: req.body.recipients?.length,
-      recipientSample: req.body.recipients?.slice(0, 1).map(r => ({
-        phoneNumber: r.phoneNumber,
-        variables: r.variables
-      })),
-      options: req.body.options
-    } : req.body,
+    body: req.body,
     query: req.query
   };
 

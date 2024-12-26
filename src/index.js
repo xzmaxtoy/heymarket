@@ -2,7 +2,15 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import swaggerUi from 'swagger-ui-express';
+import yaml from 'js-yaml';
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import config from './config/config.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const apiSpec = yaml.load(readFileSync(join(__dirname, '..', 'api-docs.yaml'), 'utf8'));
 import { authenticate } from './middleware/auth.js';
 import { errorHandler, notFound } from './middleware/error.js';
 import messagesRouter from './routes/messages.js';
@@ -40,9 +48,16 @@ import { requestLogger } from './middleware/requestLogger.js';
 // Apply request logger middleware
 app.use(requestLogger);
 
+// API Documentation - no auth required
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(apiSpec));
+
 // Root route - no auth required
 app.get('/', (req, res) => {
-  res.json({ status: 'ok', message: 'API is running' });
+  res.json({ 
+    status: 'ok', 
+    message: 'API is running',
+    documentation: '/api-docs'
+  });
 });
 
 // Health check - no auth required
