@@ -2,7 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2.1.0] - 2024-12-25
+## [2.1.0] - 2024-12-29 (Stable)
+
+### Added
+- Improved rate limit handling with Heymarket API
+- Custom batch ID support
+- Enhanced error reporting with rate limit details
+- Automatic retry mechanism with backoff
+- Better logging for debugging rate limits
+
+### Changed
+- Updated rate limit handling strategy
+- Enhanced batch status response with detailed metrics
+- Improved documentation with rate limit examples
+- Added best practices for batch operations
+
+### Fixed
+- Rate limit retry logic
+- Error categorization for rate limits
+- Batch progress tracking accuracy
+- Rate limit header handling
+
+### Technical Details
+- Updated src/models/batch.js with improved rate limit handling
+- Enhanced error logging in batch operations
+- Added rate limit information to API responses
+- Updated API documentation with rate limit examples
+
+## [2.1.0-rc.1] - 2024-12-25
 
 ### Added
 - Message duplicate prevention system
