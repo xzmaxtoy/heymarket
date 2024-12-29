@@ -64,10 +64,7 @@ Create a batch of messages using a template.
 Request Body:
 ```json
 {
-  "template": {
-    "text": "Hello {{name}}, your order {{orderId}} is ready",
-    "author": "Support Team"
-  },
+  "text": "Hello {{name}}, your order {{orderId}} is ready",
   "recipients": [
     {
       "phoneNumber": "1234567890",
@@ -77,8 +74,9 @@ Request Body:
       }
     }
   ],
+  "batchId": "MY_BATCH_123",  // Optional: custom batch identifier
   "options": {
-    "priority": "high",
+    "priority": "normal",     // high: ~8/sec, normal: 5/sec, low: 2/sec
     "retryStrategy": {
       "maxAttempts": 3,
       "backoffMinutes": 1
@@ -86,6 +84,31 @@ Request Body:
   }
 }
 ```
+
+Rate Limit Handling:
+- Heymarket API Limits:
+  * 500 requests per minute maximum
+  * Returns 429 status when exceeded
+  * Provides retry-after header
+
+- Priority Levels (messages per second):
+  * high: ~8/sec (not recommended for large batches)
+  * normal: 5/sec (recommended default)
+  * low: 2/sec (for very large batches)
+
+- Automatic Rate Limit Handling:
+  1. Detects 429 responses from Heymarket
+  2. Pauses batch processing for 60 seconds
+  3. Retries failed messages with backoff
+  4. Logs detailed rate limit information
+  5. Provides rate limit status in batch results
+
+- Best Practices:
+  * Keep batches under 5000 messages
+  * Use "normal" priority for most cases
+  * Monitor batch status for rate limits
+  * Check error logs for rate limit details
+  * Split large batches into smaller chunks
 
 #### Get Batch Status
 ```
@@ -101,20 +124,54 @@ Response:
     "batchId": "batch_123",
     "status": "completed",
     "progress": {
-      "total": 1,
+      "total": 1000,
       "pending": 0,
       "processing": 0,
-      "completed": 1,
-      "failed": 0
+      "completed": 998,
+      "failed": 2
     },
     "timing": {
       "created": "2024-12-25T20:09:09.554Z",
       "started": "2024-12-25T20:09:09.555Z",
       "estimated_completion": "2024-12-25T20:09:10.055Z"
+    },
+    "errors": {
+      "categories": {
+        "rate_limit": 2,
+        "invalid_request": 0,
+        "network_error": 0,
+        "timeout": 0,
+        "unknown": 0
+      },
+      "samples": [
+        {
+          "phoneNumber": "1234567890",
+          "error": "Rate limit exceeded",
+          "category": "rate_limit",
+          "status": 429,
+          "rateLimitInfo": {
+            "limit": "500",
+            "remaining": "0",
+            "reset": "60"
+          },
+          "timestamp": "2024-12-25T20:09:09.800Z"
+        }
+      ]
+    },
+    "metrics": {
+      "messages_per_second": 4.99,
+      "success_rate": 99.8,
+      "credits_used": 998
     }
   }
 }
 ```
+
+Note: The response includes:
+- Detailed progress tracking
+- Error categorization and samples
+- Rate limit information
+- Performance metrics
 
 #### Get Batch Analytics
 ```
@@ -259,7 +316,12 @@ The API uses standard HTTP status codes and consistent error response format:
 {
   "success": false,
   "error": "Error type",
-  "message": "Detailed error message"
+  "message": "Detailed error message",
+  "rateLimitInfo": {  // Present for 429 errors
+    "limit": "500",
+    "remaining": "0",
+    "reset": "60"
+  }
 }
 ```
 
@@ -268,8 +330,33 @@ Status Codes:
 - 400: Bad Request
 - 401: Unauthorized
 - 404: Not Found
-- 429: Rate Limit Exceeded
+- 429: Rate Limit Exceeded (Heymarket API)
+  * Includes rate limit headers
+  * System automatically retries after 60 seconds
+  * Detailed rate limit info in response
+  * Exponential backoff for repeated rate limits
 - 500: Internal Server Error
+
+Rate Limit Error Example:
+```json
+{
+  "success": false,
+  "error": "RATE_LIMIT",
+  "message": "Too many requests, please try again later",
+  "rateLimitInfo": {
+    "limit": "500",        // Requests per minute limit
+    "remaining": "0",      // Remaining requests
+    "reset": "60",         // Seconds until limit resets
+    "category": "rate_limit"
+  }
+}
+```
+
+Rate Limit Best Practices:
+1. Keep batches under 5000 messages
+2. Use "normal" priority (5 msgs/sec) for large batches
+3. Monitor rate limit info in batch status/results
+4. Allow for automatic retries with backoff
 
 ## Rate Limiting
 

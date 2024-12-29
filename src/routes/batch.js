@@ -49,7 +49,7 @@ router.get('/history', (req, res) => {
 // Create batch
 router.post('/', async (req, res) => {
   try {
-    const { template, recipients, options = {} } = req.body;
+    const { text, recipients, batchId, options = {} } = req.body;
 
     // Validate request
     if (!Array.isArray(recipients) || recipients.length === 0) {
@@ -60,12 +60,12 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Validate template
-    if (!template?.id && !template?.text) {
+    // Validate text
+    if (!text) {
       return res.status(400).json({
         success: false,
         error: 'Invalid request',
-        message: 'Either template ID or template text is required'
+        message: 'Message text is required'
       });
     }
 
@@ -94,9 +94,9 @@ router.post('/', async (req, res) => {
     });
 
     // Check for duplicate batch ID
-    if (options.batchId) {
+    if (batchId) {
       try {
-        const existingBatch = getBatch(options.batchId);
+        const existingBatch = getBatch(batchId);
         if (existingBatch) {
           return res.status(409).json({
             success: false,
@@ -117,13 +117,7 @@ router.post('/', async (req, res) => {
         hasApiKey: !!req.apiKey,
         keyPrefix: req.apiKey ? req.apiKey.substring(0, 8) + '...' : 'none'
       },
-      template: {
-        type: template.id ? 'existing' : 'temporary',
-        id: template.id,
-        text: template.text,
-        author: template.author,
-        hasAttachments: !!template.attachments?.length
-      },
+      text: text,
       recipients: {
         count: recipients.length,
         sample: recipients.slice(0, 2).map(r => ({
@@ -139,7 +133,7 @@ router.post('/', async (req, res) => {
     });
 
     // Create and start batch
-    const batch = await createBatch(template, formattedRecipients, options, req);
+    const batch = await createBatch({ text }, formattedRecipients, { ...options, batchId }, req);
     
     // Log batch creation result
     console.log('Batch Created:', {
@@ -162,15 +156,6 @@ router.post('/', async (req, res) => {
   } catch (error) {
     console.error('Error creating batch:', error);
     
-    // Handle specific error cases
-    if (error.message === 'Template not found') {
-      return res.status(404).json({
-        success: false,
-        error: 'Template not found',
-        message: 'The specified template does not exist'
-      });
-    }
-
     if (error.message === 'Duplicate batch ID') {
       return res.status(409).json({
         success: false,

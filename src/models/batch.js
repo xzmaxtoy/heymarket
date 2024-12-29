@@ -12,10 +12,11 @@ const sleep = promisify(setTimeout);
 const batches = new Map();
 
 // Priority delay mapping (in milliseconds)
+// Heymarket limit: 500 requests per minute = ~8.33 requests per second
 const PRIORITY_DELAYS = {
-  high: 500,    // 2 messages per second
-  normal: 1000, // 1 message per second
-  low: 2000     // 0.5 messages per second
+  high: 120,    // ~8 messages per second
+  normal: 200,  // 5 messages per second
+  low: 500      // 2 messages per second
 };
 
 class Batch {
@@ -91,8 +92,18 @@ class Batch {
       while (attempts < this.options.retryStrategy.maxAttempts && !success) {
         try {
           if (attempts > 0) {
-            // Wait before retry using exponential backoff
-            const backoffTime = this.options.retryStrategy.backoffMinutes * 60 * 1000 * Math.pow(2, attempts - 1);
+            let backoffTime;
+            
+            // Use standard exponential backoff for first retry
+            if (attempts === 1) {
+              backoffTime = this.options.retryStrategy.backoffMinutes * 60 * 1000;
+              console.log(`First retry, waiting ${backoffTime/1000} seconds`);
+            } else {
+              // For subsequent retries, use longer delay for rate limits
+              backoffTime = 60000; // 60 seconds minimum for rate limits
+              console.log(`Rate limit retry ${attempts}, waiting ${backoffTime/1000} seconds`);
+            }
+            
             await sleep(backoffTime);
           }
 
@@ -196,37 +207,61 @@ class Batch {
           }
 
         } catch (error) {
+          const isRateLimit = error?.response?.status === 429;
           console.error('Error sending message:', {
             phoneNumber: message.phoneNumber,
             attempt: attempts + 1,
+            errorType: isRateLimit ? 'RATE_LIMIT' : 'API_ERROR',
             error: error.message,
             response: error.response?.data,
-            status: error.response?.status
+            status: error.response?.status,
+            rateLimitInfo: isRateLimit ? {
+              limit: error.response?.headers?.['x-ratelimit-limit'],
+              remaining: error.response?.headers?.['x-ratelimit-remaining'],
+              reset: error.response?.headers?.['x-ratelimit-reset']
+            } : null
           });
           
           attempts++;
+          
+          // For rate limits, pause processing for 60 seconds
+          if (isRateLimit) {
+            console.log('Rate limit hit, pausing batch processing for 60 seconds...');
+            await sleep(60000);
+          }
           
           // Categorize error
           const category = this.categorizeError(error);
           this.errors.categories[category] = (this.errors.categories[category] || 0) + 1;
 
-          // Store error sample
+          // Store error sample with more details
           if (this.errors.samples.length < 10) {
             this.errors.samples.push({
               phoneNumber: recipient.phoneNumber,
               error: error.message,
               category,
+              status: error.response?.status,
+              rateLimitInfo: isRateLimit ? {
+                limit: error.response?.headers?.['x-ratelimit-limit'],
+                remaining: error.response?.headers?.['x-ratelimit-remaining'],
+                reset: error.response?.headers?.['x-ratelimit-reset']
+              } : null,
               timestamp: new Date().toISOString()
             });
           }
 
-          // If final attempt failed, record failure
+          // If final attempt failed, record failure with details
           if (attempts === this.options.retryStrategy.maxAttempts) {
             this.results.push({
               phoneNumber: recipient.phoneNumber,
               status: 'failed',
               error: error.message,
               errorCategory: category,
+              rateLimitInfo: isRateLimit ? {
+                limit: error.response?.headers?.['x-ratelimit-limit'],
+                remaining: error.response?.headers?.['x-ratelimit-remaining'],
+                reset: error.response?.headers?.['x-ratelimit-reset']
+              } : null,
               timestamp: new Date().toISOString(),
               attempts
             });

@@ -44,3 +44,9 @@ build/Release
 .env.test.local
 .env.production.local
 project_backup/
+
+# Generated files
+deploy.zip
+*.zip
+dist/
+build/
