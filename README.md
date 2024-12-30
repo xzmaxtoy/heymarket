@@ -6,7 +6,16 @@ A Node.js Express API service that provides endpoints for interacting with the H
 
 - Message retrieval by date range with pagination
 - Message lookup by phone number
-- Customer information integration
+- Advanced customer management:
+  * Customizable column visibility
+  * Advanced filtering with multiple operators:
+    - Contains/Does Not Contain
+    - Starts With/Ends With
+    - Is Null/Is Not Null
+    - Equals/Greater Than/Less Than
+    - Between/In List
+  * Eastern Time date handling
+  * Batch message sending to filtered customers
 - Rate limiting and security measures
 - CORS support
 - Error handling and logging
@@ -50,6 +59,51 @@ npm run dev
 ```bash
 npm start
 ```
+
+## Customer Management
+
+### Customer List Interface
+The customer management interface provides a powerful way to view, filter, and manage customer data:
+
+#### Column Visibility
+- Customizable column visibility settings
+- Settings persist across sessions
+- Collapsible column visibility panel
+- Support for all customer data fields
+
+#### Advanced Filtering
+The interface supports complex filtering with multiple operators:
+
+- Text Fields:
+  * Contains
+  * Does Not Contain
+  * Starts With
+  * Ends With
+  * Equals
+  * Is Null
+  * Is Not Null
+
+- Numeric Fields:
+  * Equals
+  * Greater Than
+  * Less Than
+  * Between
+  * Is Null
+  * Is Not Null
+
+- Date Fields (Eastern Time):
+  * Equals
+  * Greater Than
+  * Less Than
+  * Between
+  * Is Null
+  * Is Not Null
+
+#### Batch Messaging
+- Select multiple customers based on filters
+- Send templated messages to selected customers
+- Preview message templates with customer data
+- Monitor batch send progress
 
 ## API Endpoints
 
@@ -190,6 +244,41 @@ Get detailed results for each message in the batch.
 GET /api/batch/:batchId/errors
 ```
 Get error details for failed messages in the batch.
+
+### Customer Management API
+
+#### Get Customers
+```
+GET /api/customers
+```
+Get customers with advanced filtering.
+
+Query Parameters:
+- `filters`: JSON array of filter objects
+- `page`: Page number (default: 1)
+- `pageSize`: Results per page (default: 50)
+
+Filter Object Format:
+```json
+{
+  "column": "name",
+  "operator": "contains",
+  "value": "John"
+}
+```
+
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "customers": [...],
+    "total": 100,
+    "page": 1,
+    "pageSize": 50
+  }
+}
+```
 
 ### Health Check
 ```
@@ -378,17 +467,25 @@ src/
 ├── models/
 │   ├── batch.js         # Batch processing model
 │   └── template.js      # Template management model
+├── public/
+│   ├── customers.html   # Customer management interface
+│   ├── customers.js     # Customer management logic
+│   └── styles.css       # Tailwind CSS styles
 ├── routes/
 │   ├── admin.js         # Admin routes
 │   ├── batch.js         # Batch operation routes
+│   ├── customers.js     # Customer management routes
 │   ├── messages.js      # Message-related routes
 │   └── templates.js     # Template management routes
 ├── utils/
-│   ├── employeeList.js  # Employee management
-│   ├── fileCache.js     # File caching utilities
+│   ├── customerManager.js # Customer data management
+│   ├── dateUtils.js      # Eastern Time date handling
+│   ├── employeeList.js   # Employee management
+│   ├── fileCache.js      # File caching utilities
 │   ├── messageHistory.js # Message history tracking
-│   ├── messageQueue.js  # Message queue management
-│   └── templateCache.js # Template caching
+│   ├── messageQueue.js   # Message queue management
+│   ├── smsAppSettings.js # SMS app configuration
+│   └── templateCache.js  # Template caching
 └── index.js             # Application entry point
 ```
 
