@@ -1,32 +1,29 @@
 /**
- * Convert YYYY-MM-DD date string to Go time format
- * @param {string} dateStr - Date in YYYY-MM-DD format
- * @returns {string} Date in Go time format (e.g., "2024-12-26T00:00:00Z")
+ * Convert a date string to Eastern Time timestamp
+ * @param {string} dateStr - Date string in YYYY-MM-DD format
+ * @param {string} time - Optional time string (HH:mm:ss)
+ * @returns {string} ISO timestamp in Eastern Time
  */
-export function toGoTimeFormat(dateStr) {
-  const date = new Date(dateStr);
-  date.setUTCHours(0, 0, 0, 0);
+export function toEasternTime(dateStr, time = '00:00:00') {
+  // Create a date object with the date and time in Eastern Time
+  const date = new Date(`${dateStr}T${time}-04:00`);
   return date.toISOString();
 }
 
 /**
- * Convert date to YYYY-MM-DD format
- * @param {Date} date - Date object
- * @returns {string} Date in YYYY-MM-DD format
+ * Get start and end of day in Eastern Time
+ * @param {string} dateStr - Date string in YYYY-MM-DD format
+ * @returns {Object} Object with start and end timestamps
  */
-export function toYYYYMMDD(date) {
-  return date.toISOString().split('T')[0];
-}
+export function getEasternDayBounds(dateStr) {
+  // For start of day in Eastern Time
+  const startDate = new Date(`${dateStr}T00:00:00-04:00`);
+  
+  // For end of day in Eastern Time
+  const endDate = new Date(`${dateStr}T23:59:59.999-04:00`);
 
-/**
- * Check if a string is in YYYY-MM-DD format
- * @param {string} dateStr - Date string to check
- * @returns {boolean} True if valid YYYY-MM-DD format
- */
-export function isValidYYYYMMDD(dateStr) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    return false;
-  }
-  const date = new Date(dateStr);
-  return !isNaN(date.getTime());
+  return {
+    start: startDate.toISOString(),
+    end: endDate.toISOString()
+  };
 }
