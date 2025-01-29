@@ -9,16 +9,40 @@ const getAuthToken = async () => {
 // Base API request configuration
 const createRequestConfig = async (config: RequestInit = {}): Promise<RequestInit> => {
   const token = await getAuthToken();
+  const apiKey = import.meta.env.VITE_API_KEY;
+  
+  // Get Heymarket IDs from environment
+  const creatorId = import.meta.env.VITE_CREATOR_ID;
+  const inboxId = import.meta.env.VITE_INBOX_ID;
+
+  if (!apiKey) {
+    console.warn('Missing API key in environment');
+  }
+
+  if (!creatorId || !inboxId) {
+    console.warn('Missing Heymarket configuration:', { creatorId, inboxId });
+  }
+
+  const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${apiKey || token}`,
+    'X-Creator-Id': creatorId,
+    'X-Inbox-Id': inboxId,
+    'X-Request-Id': requestId,
+  };
+
+  console.log('Request headers:', {
+    ...headers,
+    'Authorization': headers.Authorization ? 'Bearer [REDACTED]' : undefined,
+  });
+
   return {
     ...config,
     headers: {
       ...config.headers,
-      'Content-Type': 'application/json',
-      'Authorization': token ? `Bearer ${token}` : '',
-      // Add required Heymarket headers
-      'X-Creator-Id': '45507', // From backend config
-      'X-Inbox-Id': '21571',   // From backend config
-      'X-Request-Id': `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      ...headers,
     },
   };
 };
@@ -28,19 +52,43 @@ export const apiRequest = async <T>(
   endpoint: string,
   config: RequestInit = {}
 ): Promise<T> => {
-  const requestConfig = await createRequestConfig(config);
-  const response = await fetch(`/api${endpoint}`, requestConfig);
+  try {
+    console.log(`API Request to ${endpoint}:`, {
+      method: config.method,
+      body: config.body ? JSON.parse(config.body as string) : undefined,
+    });
 
-  if (!response.ok) {
-    if (response.status === 401) {
-      // Handle authentication errors
-      throw new Error('Authentication failed. Please log in again.');
+    const requestConfig = await createRequestConfig(config);
+    const response = await fetch(endpoint, requestConfig);
+
+    console.log(`API Response from ${endpoint}:`, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries()),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      console.error(`API Error from ${endpoint}:`, error);
+
+      if (response.status === 401) {
+        throw new Error('Authentication failed. Please check your API key.');
+      }
+
+      throw new Error(error.message || `API request failed: ${response.statusText}`);
     }
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.message || `API request failed: ${response.statusText}`);
-  }
 
-  return response.json();
+    const data = await response.json();
+    console.log(`API Success from ${endpoint}:`, {
+      ...data,
+      data: data.data ? '[REDACTED]' : undefined,
+    });
+
+    return data.data || data;
+  } catch (error) {
+    console.error(`API Error in ${endpoint}:`, error);
+    throw error;
+  }
 };
 
 // Common API methods
