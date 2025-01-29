@@ -2,10 +2,7 @@ import { createAsyncThunk } from '@reduxjs/toolkit';
 import { supabase } from '@/services/supabase';
 import { 
   Template, 
-  TemplateFilter, 
   TemplateMutation,
-  TemplateStats,
-  TemplateListResponse,
   TEMPLATE_VALIDATION_RULES,
   TemplateValidationError
 } from '@/features/templates/types';
@@ -56,9 +53,11 @@ export const fetchTemplates = createAsyncThunk(
   }: { 
     page: number; 
     pageSize: number; 
-    filter?: TemplateFilter 
-  }): Promise<TemplateListResponse> => {
+    filter?: { search?: string; sortBy?: string; sortOrder?: 'asc' | 'desc' } 
+  }) => {
     try {
+      console.log('Fetching templates with params:', { page, pageSize, filter });
+      
       let query = supabase
         .from('sms_templates')
         .select('*', { count: 'exact' });
@@ -73,24 +72,31 @@ export const fetchTemplates = createAsyncThunk(
         query = query.order(filter.sortBy, { 
           ascending: filter.sortOrder === 'asc' 
         });
+      } else {
+        // Default sorting by updated_at desc
+        query = query.order('updated_at', { ascending: false });
       }
 
       // Apply pagination
-      query = query
-        .range((page - 1) * pageSize, page * pageSize - 1);
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+      query = query.range(from, to);
 
       const { data, error, count } = await query;
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching templates:', error);
+        throw error;
+      }
+
+      console.log('Fetched templates:', data, 'count:', count);
 
       return {
         templates: data as Template[],
         total: count || 0,
-        page,
-        pageSize,
       };
     } catch (error) {
-      console.error('Error fetching templates:', error);
+      console.error('Error in fetchTemplates:', error);
       throw error;
     }
   }
@@ -109,15 +115,24 @@ export const createTemplate = createAsyncThunk(
 
       const { data, error } = await supabase
         .from('sms_templates')
-        .insert(template)
+        .insert({
+          name: template.name,
+          content: template.content,
+          description: template.description,
+          variables: template.variables,
+        })
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error creating template:', error);
+        throw error;
+      }
 
+      console.log('Created template:', data);
       return data as Template;
     } catch (error) {
-      console.error('Error creating template:', error);
+      console.error('Error in createTemplate:', error);
       throw error;
     }
   }
@@ -136,16 +151,26 @@ export const updateTemplate = createAsyncThunk(
 
       const { data, error } = await supabase
         .from('sms_templates')
-        .update(template)
+        .update({
+          name: template.name,
+          content: template.content,
+          description: template.description,
+          variables: template.variables,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', id)
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error updating template:', error);
+        throw error;
+      }
 
+      console.log('Updated template:', data);
       return data as Template;
     } catch (error) {
-      console.error('Error updating template:', error);
+      console.error('Error in updateTemplate:', error);
       throw error;
     }
   }
@@ -161,41 +186,14 @@ export const deleteTemplate = createAsyncThunk(
         .delete()
         .eq('id', id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error deleting template:', error);
+        throw error;
+      }
 
       return id;
     } catch (error) {
-      console.error('Error deleting template:', error);
-      throw error;
-    }
-  }
-);
-
-// Fetch template stats
-export const fetchTemplateStats = createAsyncThunk(
-  'templates/fetchTemplateStats',
-  async (templateId: string) => {
-    try {
-      // This would be replaced with actual stats calculation from batch results
-      const { data, error } = await supabase
-        .from('sms_batch_log')
-        .select('*')
-        .eq('template_id', templateId);
-
-      if (error) throw error;
-
-      // Calculate stats from batch logs
-      const stats: TemplateStats = {
-        id: templateId,
-        totalUsage: data.length,
-        successRate: data.filter(log => log.status === 'completed').length / data.length * 100,
-        averageDeliveryTime: 0, // Would need to calculate from actual delivery times
-        lastUsed: data[0]?.created_at,
-      };
-
-      return stats;
-    } catch (error) {
-      console.error('Error fetching template stats:', error);
+      console.error('Error in deleteTemplate:', error);
       throw error;
     }
   }
