@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Template } from '../types';
 import { Customer } from '@/types/customer';
 
@@ -7,14 +7,36 @@ interface PreviewData {
   variables: Record<string, string>;
 }
 
-export const useTemplatePreview = (template: Template) => {
-  const [previewCustomer, setPreviewCustomer] = useState<Customer | null>(null);
+export const useTemplatePreview = (template: Template, initialCustomer?: Customer) => {
+  const [previewCustomer, setPreviewCustomer] = useState<Customer | null>(initialCustomer || null);
   const [customVariables, setCustomVariables] = useState<Record<string, string>>({});
+
+  // Initialize customVariables with customer data when available
+  useEffect(() => {
+    if (previewCustomer) {
+      const customerData = Object.entries(previewCustomer).reduce((acc, [key, value]) => ({
+        ...acc,
+        [key]: String(value || ''),
+      }), {});
+      setCustomVariables(prev => ({
+        ...customerData,
+        ...prev, // Keep any manually set values
+      }));
+    }
+  }, [previewCustomer]);
+
+  // Update when initialCustomer changes
+  useEffect(() => {
+    if (initialCustomer) {
+      setPreviewCustomer(initialCustomer);
+    }
+  }, [initialCustomer]);
 
   // Substitute variables in template content with actual values
   const substituteVariables = useCallback((content: string, data: Record<string, string>) => {
     return content.replace(/\{\{([^}]+)\}\}/g, (match, variable) => {
-      return data[variable] || match;
+      const value = data[variable];
+      return value !== undefined ? value : match;
     });
   }, []);
 
@@ -22,34 +44,20 @@ export const useTemplatePreview = (template: Template) => {
   const getPreviewContent = useCallback(() => {
     if (!template) return '';
 
-    // Combine customer data with custom variables
-    const data: Record<string, string> = {
-      ...Object.fromEntries(
-        Object.entries(previewCustomer || {}).map(([key, value]) => [
-          key,
-          String(value)
-        ])
-      ),
-      ...customVariables,
-    };
-
-    return substituteVariables(template.content, data);
-  }, [template, previewCustomer, customVariables, substituteVariables]);
+    return substituteVariables(template.content, customVariables);
+  }, [template, customVariables, substituteVariables]);
 
   // Get list of missing variables
   const getMissingVariables = useCallback(() => {
     if (!template) return [];
 
     const variables = new Set(template.variables);
-    const availableVariables = new Set([
-      ...Object.keys(previewCustomer || {}),
-      ...Object.keys(customVariables),
-    ]);
+    const availableVariables = new Set(Object.keys(customVariables));
 
     return Array.from(variables).filter(
-      variable => !availableVariables.has(variable)
+      variable => !availableVariables.has(variable) || !customVariables[variable]
     );
-  }, [template, previewCustomer, customVariables]);
+  }, [template, customVariables]);
 
   // Update custom variable value
   const setVariableValue = useCallback((variable: string, value: string) => {
@@ -69,17 +77,21 @@ export const useTemplatePreview = (template: Template) => {
   const getPreviewData = useCallback((): PreviewData => {
     return {
       content: getPreviewContent(),
-      variables: {
-        ...Object.fromEntries(
-          Object.entries(previewCustomer || {}).map(([key, value]) => [
-            key,
-            String(value)
-          ])
-        ),
-        ...customVariables,
-      },
+      variables: customVariables,
     };
-  }, [getPreviewContent, previewCustomer, customVariables]);
+  }, [getPreviewContent, customVariables]);
+
+  // Debug logging
+  useEffect(() => {
+    console.log('Template Preview State:', {
+      template,
+      initialCustomer,
+      previewCustomer,
+      customVariables,
+      previewContent: getPreviewContent(),
+      missingVariables: getMissingVariables(),
+    });
+  }, [template, initialCustomer, previewCustomer, customVariables, getPreviewContent, getMissingVariables]);
 
   return {
     // State

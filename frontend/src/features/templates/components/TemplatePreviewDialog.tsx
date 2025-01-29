@@ -43,24 +43,17 @@ export const TemplatePreviewDialog: React.FC<TemplatePreviewDialogProps> = ({
   const theme = useTheme();
   const [mobileView, setMobileView] = React.useState(true);
   const [copied, setCopied] = React.useState(false);
+
+  console.log('TemplatePreviewDialog props:', { template, customer }); // Debug log
   
   const {
-    previewCustomer,
     customVariables,
     previewContent,
     missingVariables,
-    setPreviewCustomer,
     setVariableValue,
-    resetPreview,
-  } = useTemplatePreview(template);
+  } = useTemplatePreview(template, customer);
 
-  // Set initial customer when dialog opens
-  React.useEffect(() => {
-    if (open && customer) {
-      setPreviewCustomer(customer);
-    }
-    return () => resetPreview();
-  }, [open, customer, setPreviewCustomer, resetPreview]);
+  console.log('Preview state:', { customVariables, previewContent, missingVariables }); // Debug log
 
   const handleCopy = async () => {
     try {
@@ -149,7 +142,7 @@ export const TemplatePreviewDialog: React.FC<TemplatePreviewDialogProps> = ({
           <Grid item xs={mobileView ? 6 : 4}>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Typography variant="subtitle1">
-                Variable Values
+                Variable Values {customer && `(Customer: ${customer.name})`}
               </Typography>
 
               {missingVariables.length > 0 && (
@@ -162,11 +155,7 @@ export const TemplatePreviewDialog: React.FC<TemplatePreviewDialogProps> = ({
                 <TextField
                   key={variable}
                   label={FIELD_LABELS[variable] || variable}
-                  value={
-                    customVariables[variable] ||
-                    (previewCustomer && String(previewCustomer[variable as keyof Customer])) ||
-                    ''
-                  }
+                  value={customVariables[variable] || ''}
                   onChange={(e) => setVariableValue(variable, e.target.value)}
                   size="small"
                   fullWidth
