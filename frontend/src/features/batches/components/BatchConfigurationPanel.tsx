@@ -2,25 +2,29 @@ import React from 'react';
 import {
   Box,
   TextField,
+  Typography,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
-  Typography,
-  Paper,
-  SelectChangeEvent,
+  FormHelperText,
+  Stack,
 } from '@mui/material';
 import { DateTimePicker } from '@mui/x-date-pickers';
+import { Dayjs } from 'dayjs';
 import { useAppDispatch } from '@/store';
-import { setBatchName, setTemplate, setScheduledFor } from '@/store/slices/batchesSlice';
 import { Template } from '@/features/templates/types';
 import { Customer } from '@/types/customer';
-import dayjs from 'dayjs';
+import { 
+  setName, 
+  setTemplate, 
+  setScheduledFor 
+} from '@/store/slices/batchesSlice';
 
 interface BatchConfigurationPanelProps {
   name: string;
   selectedTemplate: Template | null;
-  scheduledFor: string | null;
+  scheduledFor: Dayjs | null;
   templates: Template[];
   selectedCustomers: Customer[];
 }
@@ -34,65 +38,72 @@ export const BatchConfigurationPanel: React.FC<BatchConfigurationPanelProps> = (
 }) => {
   const dispatch = useAppDispatch();
 
-  const handleTemplateChange = (event: SelectChangeEvent<string>) => {
-    const templateId = event.target.value;
-    const template = templates.find(t => t.id === templateId);
-    dispatch(setTemplate(template || null));
-  };
-
-  const handleScheduleChange = (date: dayjs.Dayjs | null) => {
-    dispatch(setScheduledFor(date?.toISOString() || null));
-  };
-
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      {/* Selected Customers Summary */}
-      <Paper sx={{ p: 2 }}>
-        <Typography variant="subtitle2" gutterBottom>
-          Selected Recipients
+    <Stack spacing={3}>
+      <Box>
+        <Typography variant="h6" gutterBottom>
+          Batch Configuration
         </Typography>
-        <Typography>
+        <Typography variant="body2" color="text.secondary" gutterBottom>
+          Configure your batch message settings
+        </Typography>
+      </Box>
+
+      {/* Batch Name */}
+      <TextField
+        label="Batch Name"
+        value={name}
+        onChange={(e) => dispatch(setName(e.target.value))}
+        fullWidth
+        required
+        helperText="Give your batch a descriptive name"
+      />
+
+      {/* Template Selection */}
+      <FormControl fullWidth required>
+        <InputLabel>Message Template</InputLabel>
+        <Select
+          value={selectedTemplate?.id || ''}
+          onChange={(e) => {
+            const template = templates.find(t => t.id === e.target.value);
+            dispatch(setTemplate(template || null));
+          }}
+          label="Message Template"
+        >
+          {templates.map((template) => (
+            <MenuItem key={template.id} value={template.id}>
+              {template.name}
+            </MenuItem>
+          ))}
+        </Select>
+        <FormHelperText>
+          Select a template for your batch message
+        </FormHelperText>
+      </FormControl>
+
+      {/* Schedule */}
+      <DateTimePicker
+        label="Schedule For (Optional)"
+        value={scheduledFor}
+        onChange={(date) => dispatch(setScheduledFor(date))}
+        slotProps={{
+          textField: {
+            fullWidth: true,
+            helperText: "Leave empty to send immediately",
+          },
+        }}
+      />
+
+      {/* Recipients Summary */}
+      <Box>
+        <Typography variant="subtitle2" gutterBottom>
+          Recipients
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
           {selectedCustomers.length} customer{selectedCustomers.length !== 1 ? 's' : ''} selected
         </Typography>
-      </Paper>
-
-      {/* Basic Configuration */}
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <TextField
-          label="Batch Name"
-          value={name}
-          onChange={(e) => dispatch(setBatchName(e.target.value))}
-          required
-          fullWidth
-        />
-
-        <FormControl fullWidth required>
-          <InputLabel>Template</InputLabel>
-          <Select
-            value={selectedTemplate?.id || ''}
-            onChange={handleTemplateChange}
-            label="Template"
-          >
-            {templates.map((template) => (
-              <MenuItem key={template.id} value={template.id}>
-                {template.name}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-
-        <DateTimePicker
-          label="Schedule For (Optional)"
-          value={scheduledFor ? dayjs(scheduledFor) : null}
-          onChange={handleScheduleChange}
-          slotProps={{
-            textField: {
-              fullWidth: true,
-            },
-          }}
-        />
       </Box>
-    </Box>
+    </Stack>
   );
 };
 

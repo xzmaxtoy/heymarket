@@ -16,6 +16,7 @@ import { createBatch } from '@/store/thunks/batchThunks';
 import { Customer } from '@/types/customer';
 import { useTemplateList } from '@/features/templates/hooks/useTemplateList';
 import { useTemplatePreview } from '@/features/templates/hooks/useTemplatePreview';
+import { BatchCreationState } from '../types';
 import BatchConfigurationPanel from './BatchConfigurationPanel';
 import BatchPreviewPanel from './BatchPreviewPanel';
 
@@ -54,11 +55,14 @@ export const BatchCreationDialog: React.FC<BatchCreationDialogProps> = ({
     try {
       setIsSubmitting(true);
       setError(null);
-      await dispatch(createBatch({
+
+      const batchData: BatchCreationState = {
         ...creation,
         customers: selectedCustomers,
         variables: customVariables,
-      })).unwrap();
+      };
+
+      await dispatch(createBatch(batchData)).unwrap();
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create batch');
@@ -83,7 +87,7 @@ export const BatchCreationDialog: React.FC<BatchCreationDialogProps> = ({
       }}
     >
       <DialogTitle>
-        <Typography variant="h6">Create Batch Message</Typography>
+        <Typography variant="h5">Create Batch Message</Typography>
       </DialogTitle>
 
       <DialogContent>
