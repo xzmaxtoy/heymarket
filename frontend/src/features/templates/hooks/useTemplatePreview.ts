@@ -7,13 +7,13 @@ interface PreviewData {
   variables: Record<string, string>;
 }
 
-export const useTemplatePreview = (template: Template, initialCustomer?: Customer) => {
+export const useTemplatePreview = (template: Template | null, initialCustomer?: Customer | null) => {
   const [previewCustomer, setPreviewCustomer] = useState<Customer | null>(initialCustomer || null);
   const [customVariables, setCustomVariables] = useState<Record<string, string>>({});
 
   // Initialize customVariables with customer data when available
   useEffect(() => {
-    if (previewCustomer) {
+    if (previewCustomer && template) {
       // Map customer fields to variable names (removing curly braces)
       const customerData = Object.entries(previewCustomer).reduce((acc, [key, value]) => {
         // Convert boolean and number values to strings
@@ -35,8 +35,10 @@ export const useTemplatePreview = (template: Template, initialCustomer?: Custome
         ...customerData,
         ...prev, // Keep any manually set values
       }));
+    } else {
+      setCustomVariables({});
     }
-  }, [previewCustomer]);
+  }, [previewCustomer, template]);
 
   // Update when initialCustomer changes
   useEffect(() => {
