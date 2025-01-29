@@ -1,7 +1,0 @@
-{
-  "ignore": [
-    "cache/*",
-    "node_modules/*"
-  ],
-  "ext": "js,json"
-}
