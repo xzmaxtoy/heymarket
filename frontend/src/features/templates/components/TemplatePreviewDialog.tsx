@@ -13,8 +13,6 @@ import {
   Grid,
   IconButton,
   useTheme,
-  Switch,
-  FormControlLabel,
 } from '@mui/material';
 import {
   Smartphone as SmartphoneIcon,
@@ -54,6 +52,12 @@ export const TemplatePreviewDialog: React.FC<TemplatePreviewDialogProps> = ({
   } = useTemplatePreview(template, customer);
 
   console.log('Preview state:', { customVariables, previewContent, missingVariables }); // Debug log
+
+  // Extract variables from template content
+  const templateVariables = React.useMemo(() => {
+    const matches = template.content.match(/\{\{([^}]+)\}\}/g) || [];
+    return [...new Set(matches.map(match => match.slice(2, -2).trim()))];
+  }, [template.content]);
 
   const handleCopy = async () => {
     try {
@@ -151,7 +155,7 @@ export const TemplatePreviewDialog: React.FC<TemplatePreviewDialogProps> = ({
                 </Alert>
               )}
 
-              {template.variables.map((variable) => (
+              {templateVariables.map((variable) => (
                 <TextField
                   key={variable}
                   label={FIELD_LABELS[variable] || variable}
@@ -159,8 +163,15 @@ export const TemplatePreviewDialog: React.FC<TemplatePreviewDialogProps> = ({
                   onChange={(e) => setVariableValue(variable, e.target.value)}
                   size="small"
                   fullWidth
+                  helperText={`Use as: {{${variable}}}`}
                 />
               ))}
+
+              {templateVariables.length === 0 && (
+                <Typography color="text.secondary">
+                  No variables found in template. Use double curly braces to add variables (e.g., {"{{name}}"}).
+                </Typography>
+              )}
             </Box>
           </Grid>
         </Grid>
