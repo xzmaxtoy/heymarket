@@ -146,6 +146,33 @@ export const createBatch = createAsyncThunk(
   }
 );
 
+// Start batch
+export const startBatch = createAsyncThunk(
+  'batches/startBatch',
+  async (batchId: string) => {
+    try {
+      // Call the resume endpoint to start the batch
+      const response = await fetch(`/api/batch/${batchId}/resume`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to start batch');
+      }
+
+      const { data } = await response.json();
+      return data as Batch;
+    } catch (error) {
+      console.error('Error starting batch:', error);
+      throw new Error(handleError(error));
+    }
+  }
+);
+
 // Cancel batch
 export const cancelBatch = createAsyncThunk(
   'batches/cancelBatch',
@@ -159,6 +186,15 @@ export const cancelBatch = createAsyncThunk(
         .single();
 
       if (error) throw error;
+
+      // Update pending batch logs to cancelled
+      const { error: logsError } = await supabase
+        .from('sms_batch_log')
+        .update({ status: 'cancelled' })
+        .eq('batch_id', batchId)
+        .eq('status', 'pending');
+
+      if (logsError) throw logsError;
 
       return data as Batch;
     } catch (error) {

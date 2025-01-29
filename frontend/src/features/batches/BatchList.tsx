@@ -10,7 +10,7 @@ import {
   setCurrentPage,
   setPageSize,
 } from '@/store/slices/batchesSlice';
-import { fetchBatches, cancelBatch } from '@/store/thunks/batchThunks';
+import { fetchBatches } from '@/store/thunks/batchThunks';
 import { Batch } from './types';
 import BatchListToolbar from './components/BatchListToolbar';
 import BatchStatusChip from './components/BatchStatusChip';
@@ -28,16 +28,6 @@ export const BatchList: React.FC = () => {
   React.useEffect(() => {
     dispatch(fetchBatches({ page: currentPage + 1, pageSize, filter }));
   }, [dispatch, currentPage, pageSize, filter]);
-
-  const handleCancelBatch = async (batchId: string) => {
-    try {
-      await dispatch(cancelBatch(batchId)).unwrap();
-      // Refresh list after cancellation
-      dispatch(fetchBatches({ page: currentPage + 1, pageSize, filter }));
-    } catch (error) {
-      console.error('Failed to cancel batch:', error);
-    }
-  };
 
   const handleRefreshBatch = (batchId: string) => {
     dispatch(fetchBatches({ page: currentPage + 1, pageSize, filter }));
@@ -103,8 +93,7 @@ export const BatchList: React.FC = () => {
       renderCell: (params) => (
         <BatchActions
           batch={params.row as Batch}
-          onCancel={handleCancelBatch}
-          onRefresh={() => handleRefreshBatch(params.row.id)}
+          onRefresh={handleRefreshBatch}
         />
       ),
     },

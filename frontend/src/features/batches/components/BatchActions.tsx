@@ -10,60 +10,91 @@ import {
   Pause as PauseIcon,
   PlayArrow as PlayArrowIcon,
 } from '@mui/icons-material';
+import { useAppDispatch } from '@/store';
+import { startBatch, cancelBatch } from '@/store/thunks/batchThunks';
 import { Batch } from '../types';
 
 interface BatchActionsProps {
   batch: Batch;
-  onCancel?: (batchId: string) => void;
-  onPause?: (batchId: string) => void;
-  onStart?: (batchId: string) => void;
   onRefresh?: (batchId: string) => void;
 }
 
 export const BatchActions: React.FC<BatchActionsProps> = ({
   batch,
-  onCancel,
-  onPause,
-  onStart,
   onRefresh,
 }) => {
+  const dispatch = useAppDispatch();
+  const [isLoading, setIsLoading] = React.useState(false);
+
   const isPending = batch.status === 'pending';
   const isProcessing = batch.status === 'processing';
+
+  const handleStart = async () => {
+    try {
+      setIsLoading(true);
+      await dispatch(startBatch(batch.id)).unwrap();
+      if (onRefresh) {
+        onRefresh(batch.id);
+      }
+    } catch (error) {
+      console.error('Failed to start batch:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCancel = async () => {
+    try {
+      setIsLoading(true);
+      await dispatch(cancelBatch(batch.id)).unwrap();
+      if (onRefresh) {
+        onRefresh(batch.id);
+      }
+    } catch (error) {
+      console.error('Failed to cancel batch:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <Box sx={{ display: 'flex', gap: 0.5 }}>
       {/* Cancel Action */}
-      {(isPending || isProcessing) && onCancel && (
+      {(isPending || isProcessing) && (
         <Tooltip title="Cancel Batch">
           <IconButton
             size="small"
-            onClick={() => onCancel(batch.id)}
+            onClick={handleCancel}
             color="error"
+            disabled={isLoading}
           >
             <CancelIcon />
           </IconButton>
         </Tooltip>
       )}
 
-      {/* Pause Action */}
-      {isProcessing && onPause && (
-        <Tooltip title="Pause Batch">
-          <IconButton
-            size="small"
-            onClick={() => onPause(batch.id)}
-          >
-            <PauseIcon />
-          </IconButton>
+      {/* Pause Action - To be implemented */}
+      {isProcessing && (
+        <Tooltip title="Pause Batch (Coming Soon)">
+          <span>
+            <IconButton
+              size="small"
+              disabled={true}
+            >
+              <PauseIcon />
+            </IconButton>
+          </span>
         </Tooltip>
       )}
 
       {/* Start Action */}
-      {isPending && onStart && (
+      {isPending && (
         <Tooltip title="Start Now">
           <IconButton
             size="small"
-            onClick={() => onStart(batch.id)}
+            onClick={handleStart}
             color="primary"
+            disabled={isLoading}
           >
             <PlayArrowIcon />
           </IconButton>
@@ -76,6 +107,7 @@ export const BatchActions: React.FC<BatchActionsProps> = ({
           <IconButton
             size="small"
             onClick={() => onRefresh(batch.id)}
+            disabled={isLoading}
           >
             <RefreshIcon />
           </IconButton>
