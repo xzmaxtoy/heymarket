@@ -31,9 +31,12 @@
 - [x] Batch list view with filtering
 - [x] Status tracking and indicators
 - [x] Progress visualization
-- [x] Batch actions (cancel, refresh)
+- [x] Start pending batches
+- [x] Cancel running batches
 - [x] Failed message tracking
 - [x] Scheduled batch display
+- [x] Loading states for actions
+- [x] Error handling for operations
 
 ## High Priority
 
@@ -47,9 +50,9 @@
   * Status changes
   * Error notifications
 - [ ] Batch actions
-  * Cancel batch
   * Pause/resume
   * Retry failed messages
+  * Batch reprioritization
 
 ### Analytics Dashboard
 - [ ] Batch statistics

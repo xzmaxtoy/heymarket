@@ -5,11 +5,17 @@ All notable changes to the Batch SMS Frontend will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Batch Start Functionality
+  * Start pending batches immediately
+  * Loading states for batch actions
+  * Error handling for batch operations
+  * Automatic refresh after actions
+  * Integration with backend resume endpoint
 - Batch Monitoring Feature
   * Batch list view with filtering and pagination
   * Real-time status tracking
   * Progress visualization
-  * Batch actions (cancel, refresh)
+  * Batch actions (start, cancel, refresh)
   * Status indicators
   * Failed message tracking
   * Scheduled batch display
