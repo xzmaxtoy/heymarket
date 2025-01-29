@@ -4,6 +4,7 @@ import { Provider } from 'react-redux';
 import { store } from './store';
 import CustomerSelection from './features/customers/CustomerSelection';
 import TemplateList from './features/templates/TemplateList';
+import BatchList from './features/batches/BatchList';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -47,6 +48,7 @@ const App: React.FC = () => {
           >
             <Tab label="Customers" />
             <Tab label="Templates" />
+            <Tab label="Batches" />
           </Tabs>
 
           <Box sx={{ flex: 1, minHeight: 0 }}>
@@ -56,6 +58,10 @@ const App: React.FC = () => {
 
             <TabPanel value={currentTab} index={1}>
               <TemplateList />
+            </TabPanel>
+
+            <TabPanel value={currentTab} index={2}>
+              <BatchList />
             </TabPanel>
           </Box>
         </Box>
