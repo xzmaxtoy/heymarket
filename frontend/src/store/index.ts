@@ -1,11 +1,13 @@
 import { configureStore } from '@reduxjs/toolkit';
 import customersReducer from './slices/customersSlice';
 import templatesReducer from './slices/templatesSlice';
+import batchesReducer from './slices/batchesSlice';
 
 export const store = configureStore({
   reducer: {
     customers: customersReducer,
     templates: templatesReducer,
+    batches: batchesReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
