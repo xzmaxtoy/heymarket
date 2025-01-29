@@ -1,12 +1,32 @@
-import { Template } from '../templates/types';
+import { Template } from '@/features/templates/types';
 import { Customer } from '@/types/customer';
+import { Dayjs } from 'dayjs';
+import { ChipProps } from '@mui/material';
 
 export type BatchStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+
+type ChipColor = NonNullable<ChipProps['color']>;
+
+export const BATCH_STATUS_COLORS: Record<BatchStatus, ChipColor> = {
+  pending: 'warning',
+  processing: 'info',
+  completed: 'success',
+  failed: 'error',
+  cancelled: 'default',
+} as const;
+
+export const BATCH_STATUS_LABELS: Record<BatchStatus, string> = {
+  pending: 'Pending',
+  processing: 'Processing',
+  completed: 'Completed',
+  failed: 'Failed',
+  cancelled: 'Cancelled',
+} as const;
 
 export interface Batch {
   id: string;
   name: string;
-  template_id: string | null;
+  template_id: string;
   status: BatchStatus;
   total_recipients: number;
   completed_count: number;
@@ -19,39 +39,6 @@ export interface Batch {
   updated_at: string;
 }
 
-export interface BatchLog {
-  id: string;
-  batch_id: string;
-  date_utc: string;
-  targets: string;
-  status: string | null;
-  message: string;
-  error: string | null;
-  variables: Record<string, any> | null;
-  created_at: string | null;
-  updated_at: string | null;
-}
-
-export interface BatchPreview {
-  customer: Customer;
-  message: string;
-  variables: Record<string, string>;
-}
-
-export interface BatchCreationStep {
-  template: Template | null;
-  customers: Customer[];
-  variables: Record<string, string>;
-  scheduledFor: string | null;
-  name: string;
-}
-
-export interface BatchCreationState extends BatchCreationStep {
-  currentStep: number;
-  isValid: boolean;
-  errors: Record<string, string>;
-}
-
 export interface BatchFilter {
   search?: string;
   status?: BatchStatus[];
@@ -59,7 +46,7 @@ export interface BatchFilter {
     start: string;
     end: string;
   };
-  sortBy?: keyof Batch;
+  sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 }
 
@@ -67,72 +54,20 @@ export interface BatchStats {
   totalBatches: number;
   completedBatches: number;
   failedBatches: number;
-  averageDeliveryTime: number;
   successRate: number;
+  averageDeliveryTime: number;
 }
 
-// Constants
-export const BATCH_STEPS = [
-  'Select Template',
-  'Review Customers',
-  'Configure Variables',
-  'Schedule Delivery',
-  'Preview & Confirm',
-] as const;
+export interface BatchCreationState {
+  name: string;
+  template: Template | null;
+  scheduledFor: Dayjs | null;
+  customers: Customer[];
+  variables: Record<string, string>;
+}
 
-export const BATCH_STATUS_LABELS: Record<BatchStatus, string> = {
-  pending: 'Pending',
-  processing: 'Processing',
-  completed: 'Completed',
-  failed: 'Failed',
-  cancelled: 'Cancelled',
-};
-
-export const BATCH_STATUS_COLORS: Record<BatchStatus, string> = {
-  pending: 'info',
-  processing: 'warning',
-  completed: 'success',
-  failed: 'error',
-  cancelled: 'default',
-};
-
-// Validation
-export const BATCH_VALIDATION_RULES = {
-  name: {
-    required: true,
-    minLength: 1,
-    maxLength: 100,
-  },
-  template: {
-    required: true,
-  },
-  customers: {
-    required: true,
-    minCount: 1,
-    maxCount: 1000, // Adjust based on your requirements
-  },
-  scheduledFor: {
-    required: false,
-    minDate: new Date(), // Cannot schedule in the past
-  },
-};
-
-// Error messages
-export const BATCH_ERROR_MESSAGES = {
-  name: {
-    required: 'Batch name is required',
-    minLength: 'Batch name must not be empty',
-    maxLength: 'Batch name must be less than 100 characters',
-  },
-  template: {
-    required: 'Please select a template',
-  },
-  customers: {
-    required: 'Please select at least one customer',
-    minCount: 'Please select at least one customer',
-    maxCount: 'Maximum 1000 customers allowed per batch',
-  },
-  scheduledFor: {
-    minDate: 'Cannot schedule batch in the past',
-  },
-};
+export interface BatchPagination {
+  currentPage: number;
+  pageSize: number;
+  total: number;
+}
