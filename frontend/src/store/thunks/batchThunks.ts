@@ -163,7 +163,7 @@ export const createBatch = createAsyncThunk(
       try {
         console.log('Creating batch in backend API');
 
-        await api.post('/batch', {
+        await api.post('/api/batch', {
           batchId: batchRecord.id,
           text: batchData.template?.content,
           recipients: batchData.customers.map(customer => ({
@@ -224,7 +224,7 @@ export const startBatch = createAsyncThunk(
 
       // Call backend resume endpoint
       try {
-        await api.post(`/batch/${batchId}/resume`, {});
+        await api.post(`/api/batch/${batchId}/resume`, {});
         console.log('Backend batch started');
       } catch (error) {
         console.error('Error starting batch in backend (continuing):', error);

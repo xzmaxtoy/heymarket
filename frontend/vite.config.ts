@@ -14,8 +14,27 @@ export default defineConfig({
     proxy: {
       // Proxy API requests to backend
       '/api': {
-        target: 'http://localhost:8080', // Backend server URL
+        target: 'http://localhost:3000',
         changeOrigin: true,
+        configure: (proxy, options) => {
+          // Log proxy errors
+          proxy.on('error', (err, req, res) => {
+            console.error('Proxy error:', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req, res) => {
+            console.log('Proxying request:', {
+              method: req.method,
+              url: req.url,
+              headers: req.headers,
+            });
+          });
+          proxy.on('proxyRes', (proxyRes, req, res) => {
+            console.log('Proxy response:', {
+              status: proxyRes.statusCode,
+              headers: proxyRes.headers,
+            });
+          });
+        },
       },
     },
   },
