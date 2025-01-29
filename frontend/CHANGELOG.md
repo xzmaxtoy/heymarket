@@ -5,39 +5,41 @@ All notable changes to the Batch SMS Frontend will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- Template management feature
+- Batch Creation Feature
+  * Create batch messages from selected customers
+  * Template selection and preview
+  * Variable substitution with customer data
+  * Batch scheduling support
+  * Real-time message preview
+  * Copy preview content
+  * Error handling and validation
+- Template Management Feature
   * Template list with search and pagination
   * Create/edit/delete templates
   * Variable detection and validation
   * Customer field variables selection
-  * Grouped variable categories
   * Variable insertion at cursor position
-- Supabase integration
-  * Proper database types
-  * Error handling and logging
-  * Real-time data updates
-- Customer selection feature
+  * Mobile/desktop preview modes
+- Customer Selection Feature
   * Advanced filtering
   * Column visibility management
   * Saved filters
   * Export capability
-- Redux store setup
-  * TypeScript support
-  * Template state management
-  * Customer state management
-  * Settings persistence
+  * Customer data integration with templates
 
 ### Changed
-- Enhanced template form UI
+- Enhanced Template Form UI
   * Split panel design with variable selector
   * Improved variable management
   * Better form validation
   * Real-time variable detection
-- Improved state management
+  * Variable helper text
+- Improved State Management
   * Better error handling
   * Loading states
   * Optimistic updates
-- Updated filtering system
+  * Type-safe operations
+- Updated Filtering System
   * Better UX
   * More flexible conditions
   * Improved performance
@@ -45,11 +47,13 @@ All notable changes to the Batch SMS Frontend will be documented in this file.
 ### Fixed
 - Template list refresh after operations
 - Variable detection in templates
+- Variable substitution with customer data
 - Column visibility persistence
 - Filter dialog scroll behavior
 - Date picker timezone handling
 - Column resize performance
 - Export data formatting
+- TypeScript type errors
 
 ## [0.1.0] - 2025-01-29
 
@@ -86,9 +90,8 @@ All notable changes to the Batch SMS Frontend will be documented in this file.
 - Performance optimizations for large datasets
 
 ### Next Steps
-- Add template preview with variable substitution
-- Create batch creation wizard
-- Add analytics features
-- Improve testing coverage
-- Add performance monitoring
+- Add batch monitoring system
+- Create batch analytics dashboard
 - Implement advanced scheduling
+- Add performance monitoring
+- Improve testing coverage
