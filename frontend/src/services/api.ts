@@ -15,6 +15,10 @@ const createRequestConfig = async (config: RequestInit = {}): Promise<RequestIni
       ...config.headers,
       'Content-Type': 'application/json',
       'Authorization': token ? `Bearer ${token}` : '',
+      // Add required Heymarket headers
+      'X-Creator-Id': '45507', // From backend config
+      'X-Inbox-Id': '21571',   // From backend config
+      'X-Request-Id': `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     },
   };
 };
@@ -28,8 +32,12 @@ export const apiRequest = async <T>(
   const response = await fetch(`/api${endpoint}`, requestConfig);
 
   if (!response.ok) {
+    if (response.status === 401) {
+      // Handle authentication errors
+      throw new Error('Authentication failed. Please log in again.');
+    }
     const error = await response.json().catch(() => ({}));
-    throw new Error(error.message || 'API request failed');
+    throw new Error(error.message || `API request failed: ${response.statusText}`);
   }
 
   return response.json();
