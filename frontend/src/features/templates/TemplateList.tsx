@@ -1,19 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Box, Paper } from '@mui/material';
 import { Template } from './types';
 import { useTemplateList } from './hooks/useTemplateList';
 import TemplateListToolbar from './components/TemplateListToolbar';
 import TemplateDataGrid from './components/TemplateDataGrid';
+import TemplateFormDialog from './components/TemplateFormDialog';
 
 interface TemplateListProps {
-  onCreateClick: () => void;
-  onEditClick: (template: Template) => void;
   onPreviewClick: (template: Template) => void;
 }
 
 export const TemplateList: React.FC<TemplateListProps> = ({
-  onCreateClick,
-  onEditClick,
   onPreviewClick,
 }) => {
   const {
@@ -30,12 +27,31 @@ export const TemplateList: React.FC<TemplateListProps> = ({
     onTemplateSelect,
   } = useTemplateList();
 
+  // Form dialog state
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<Template | undefined>();
+
+  const handleCreateClick = () => {
+    setEditingTemplate(undefined);
+    setFormOpen(true);
+  };
+
+  const handleEditClick = (template: Template) => {
+    setEditingTemplate(template);
+    setFormOpen(true);
+  };
+
+  const handleFormClose = () => {
+    setFormOpen(false);
+    setEditingTemplate(undefined);
+  };
+
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <TemplateListToolbar
         filter={filter}
         onFilterChange={onFilterChange}
-        onCreateClick={onCreateClick}
+        onCreateClick={handleCreateClick}
       />
 
       <Paper sx={{ flex: 1, m: 2 }}>
@@ -49,10 +65,16 @@ export const TemplateList: React.FC<TemplateListProps> = ({
           onPageSizeChange={onPageSizeChange}
           onTemplateSelect={onTemplateSelect}
           onPreviewClick={onPreviewClick}
-          onEditClick={onEditClick}
+          onEditClick={handleEditClick}
           onDeleteClick={onDeleteTemplate}
         />
       </Paper>
+
+      <TemplateFormDialog
+        open={formOpen}
+        onClose={handleFormClose}
+        template={editingTemplate}
+      />
     </Box>
   );
 };

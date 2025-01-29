@@ -4,6 +4,7 @@ import { Provider } from 'react-redux';
 import { store } from './store';
 import CustomerSelection from './features/customers/CustomerSelection';
 import TemplateList from './features/templates/TemplateList';
+import { Template } from './features/templates/types';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -40,19 +41,9 @@ const App: React.FC = () => {
     setSelectedCustomerIds(selectedIds);
   };
 
-  const handleCreateTemplate = () => {
-    // TODO: Implement template creation
-    console.log('Create template');
-  };
-
-  const handleEditTemplate = (template: any) => {
-    // TODO: Implement template editing
-    console.log('Edit template', template);
-  };
-
-  const handlePreviewTemplate = (template: any) => {
-    // TODO: Implement template preview
-    console.log('Preview template', template);
+  const handlePreviewTemplate = (template: Template) => {
+    // TODO: Implement template preview with selected customers
+    console.log('Preview template', template, 'with customers:', selectedCustomerIds);
   };
 
   return (
@@ -75,11 +66,7 @@ const App: React.FC = () => {
             </TabPanel>
 
             <TabPanel value={currentTab} index={1}>
-              <TemplateList
-                onCreateClick={handleCreateTemplate}
-                onEditClick={handleEditTemplate}
-                onPreviewClick={handlePreviewTemplate}
-              />
+              <TemplateList onPreviewClick={handlePreviewTemplate} />
             </TabPanel>
           </Box>
         </Box>
