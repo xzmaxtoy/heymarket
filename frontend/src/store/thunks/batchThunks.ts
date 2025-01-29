@@ -100,7 +100,8 @@ export const createBatch = createAsyncThunk(
   'batches/createBatch',
   async (batchData: BatchCreationState) => {
     try {
-      const { data, error } = await supabase
+      // First create batch record in Supabase
+      const { data: batchRecord, error: batchError } = await supabase
         .from('sms_batches')
         .insert({
           name: batchData.name,
@@ -114,11 +115,11 @@ export const createBatch = createAsyncThunk(
         .select()
         .single();
 
-      if (error) throw error;
+      if (batchError) throw batchError;
 
       // Create batch logs for each customer
       const batchLogs = batchData.customers.map(customer => ({
-        batch_id: data.id,
+        batch_id: batchRecord.id,
         targets: customer.phone,
         message: batchData.template?.content || '',
         variables: {
@@ -138,7 +139,44 @@ export const createBatch = createAsyncThunk(
 
       if (logsError) throw logsError;
 
-      return data as Batch;
+      // Create batch in backend
+      const response = await fetch('/api/batch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          batchId: batchRecord.id,
+          text: batchData.template?.content,
+          recipients: batchData.customers.map(customer => ({
+            phoneNumber: customer.phone,
+            variables: {
+              ...batchData.variables,
+              customer: {
+                id: customer.id,
+                name: customer.name,
+                phone: customer.phone,
+              },
+            },
+          })),
+          options: {
+            scheduleTime: batchData.scheduledFor,
+            priority: 'normal',
+            autoStart: false, // We'll start manually when requested
+            retryStrategy: {
+              maxAttempts: 3,
+              backoffMinutes: 5,
+            },
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to create batch');
+      }
+
+      return batchRecord as Batch;
     } catch (error) {
       console.error('Error creating batch:', error);
       throw new Error(handleError(error));
@@ -151,7 +189,7 @@ export const startBatch = createAsyncThunk(
   'batches/startBatch',
   async (batchId: string) => {
     try {
-      // Call the resume endpoint to start the batch
+      // Call backend resume endpoint
       const response = await fetch(`/api/batch/${batchId}/resume`, {
         method: 'POST',
         headers: {
@@ -165,7 +203,21 @@ export const startBatch = createAsyncThunk(
       }
 
       const { data } = await response.json();
-      return data as Batch;
+
+      // Update Supabase status
+      const { data: updatedBatch, error: updateError } = await supabase
+        .from('sms_batches')
+        .update({ 
+          status: 'processing',
+          scheduled_for: null // Clear scheduled time when starting immediately
+        })
+        .eq('id', batchId)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+
+      return updatedBatch as Batch;
     } catch (error) {
       console.error('Error starting batch:', error);
       throw new Error(handleError(error));
