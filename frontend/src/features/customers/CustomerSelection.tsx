@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
-import { Box, Paper } from '@mui/material';
+import { Box, Paper, Button } from '@mui/material';
+import { Send as SendIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/store';
 import {
   selectSelectedCustomers,
@@ -20,17 +21,14 @@ import {
 } from '@/store/slices/customersSlice';
 import { fetchCustomers, selectAllFilteredCustomers } from '@/store/thunks/customerThunks';
 import { loadColumnVisibility, loadSavedFilters } from '@/store/thunks/settingsThunks';
-import { ALL_COLUMNS, DEFAULT_COLUMNS, Customer } from '@/types/customer';
+import { ALL_COLUMNS, DEFAULT_COLUMNS } from '@/types/customer';
 import { FilterGroup, SavedFilter } from './filters/types';
 import CustomerDataGrid from './components/CustomerDataGrid';
 import ColumnSelector from './components/ColumnSelector';
 import FilterDialog from './filters/FilterDialog';
+import BatchCreationDialog from '../batches/components/BatchCreationDialog';
 
-interface CustomerSelectionProps {
-  onSelectionChange?: (selectedIds: string[], selectedCustomer?: Customer) => void;
-}
-
-export const CustomerSelection: React.FC<CustomerSelectionProps> = ({ onSelectionChange }) => {
+export const CustomerSelection: React.FC = () => {
   const dispatch = useAppDispatch();
   
   // Redux state
@@ -47,6 +45,7 @@ export const CustomerSelection: React.FC<CustomerSelectionProps> = ({ onSelectio
   const [columnSelectorOpen, setColumnSelectorOpen] = React.useState(false);
   const [filterDialogOpen, setFilterDialogOpen] = React.useState(false);
   const [searchText, setSearchText] = React.useState('');
+  const [batchDialogOpen, setBatchDialogOpen] = React.useState(false);
 
   // Load saved settings
   useEffect(() => {
@@ -89,11 +88,8 @@ export const CustomerSelection: React.FC<CustomerSelectionProps> = ({ onSelectio
     }));
 
   // Handlers
-  const handleSelectionChange = (newSelection: string[], selectedCustomers: Customer[]) => {
+  const handleSelectionChange = (newSelection: string[]) => {
     dispatch(setSelectedCustomers(newSelection));
-    // Pass the first selected customer if only one is selected
-    const selectedCustomer = selectedCustomers.length === 1 ? selectedCustomers[0] : undefined;
-    onSelectionChange?.(newSelection, selectedCustomer);
   };
 
   const handleFiltersChange = (filters: FilterGroup[]) => {
@@ -136,8 +132,23 @@ export const CustomerSelection: React.FC<CustomerSelectionProps> = ({ onSelectio
     }));
   };
 
+  const selectedCustomersList = customers.filter(c => 
+    selectedCustomers.includes(c.id)
+  );
+
   return (
     <Box sx={{ width: '100%', height: '100%' }}>
+      <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
+        <Button
+          variant="contained"
+          startIcon={<SendIcon />}
+          onClick={() => setBatchDialogOpen(true)}
+          disabled={selectedCustomers.length === 0}
+        >
+          Create Batch Message
+        </Button>
+      </Box>
+
       <Paper sx={{ height: 'calc(100% - 20px)', width: '100%', p: 2 }}>
         <CustomerDataGrid
           customers={customers}
@@ -177,6 +188,12 @@ export const CustomerSelection: React.FC<CustomerSelectionProps> = ({ onSelectio
         onSaveFilter={handleSaveFilter}
         onDeleteFilter={handleDeleteFilter}
         activeFilters={activeFilters}
+      />
+
+      <BatchCreationDialog
+        open={batchDialogOpen}
+        onClose={() => setBatchDialogOpen(false)}
+        selectedCustomers={selectedCustomersList}
       />
     </Box>
   );

@@ -4,7 +4,6 @@ import { Provider } from 'react-redux';
 import { store } from './store';
 import CustomerSelection from './features/customers/CustomerSelection';
 import TemplateList from './features/templates/TemplateList';
-import { Customer } from './types/customer';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -35,14 +34,6 @@ function TabPanel(props: TabPanelProps) {
 
 const App: React.FC = () => {
   const [currentTab, setCurrentTab] = useState(0);
-  const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer>();
-
-  const handleCustomerSelectionChange = (selectedIds: string[], customer?: Customer) => {
-    setSelectedCustomerIds(selectedIds);
-    // If a single customer is selected, use it for template preview
-    setSelectedCustomer(selectedIds.length === 1 ? customer : undefined);
-  };
 
   return (
     <Provider store={store}>
@@ -60,11 +51,11 @@ const App: React.FC = () => {
 
           <Box sx={{ flex: 1, minHeight: 0 }}>
             <TabPanel value={currentTab} index={0}>
-              <CustomerSelection onSelectionChange={handleCustomerSelectionChange} />
+              <CustomerSelection />
             </TabPanel>
 
             <TabPanel value={currentTab} index={1}>
-              <TemplateList selectedCustomer={selectedCustomer} />
+              <TemplateList />
             </TabPanel>
           </Box>
         </Box>
