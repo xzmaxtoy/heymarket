@@ -4,7 +4,7 @@ import { Provider } from 'react-redux';
 import { store } from './store';
 import CustomerSelection from './features/customers/CustomerSelection';
 import TemplateList from './features/templates/TemplateList';
-import { Template } from './features/templates/types';
+import { Customer } from './types/customer';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -36,14 +36,12 @@ function TabPanel(props: TabPanelProps) {
 const App: React.FC = () => {
   const [currentTab, setCurrentTab] = useState(0);
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer>();
 
-  const handleCustomerSelectionChange = (selectedIds: string[]) => {
+  const handleCustomerSelectionChange = (selectedIds: string[], customer?: Customer) => {
     setSelectedCustomerIds(selectedIds);
-  };
-
-  const handlePreviewTemplate = (template: Template) => {
-    // TODO: Implement template preview with selected customers
-    console.log('Preview template', template, 'with customers:', selectedCustomerIds);
+    // If a single customer is selected, use it for template preview
+    setSelectedCustomer(selectedIds.length === 1 ? customer : undefined);
   };
 
   return (
@@ -66,7 +64,7 @@ const App: React.FC = () => {
             </TabPanel>
 
             <TabPanel value={currentTab} index={1}>
-              <TemplateList onPreviewClick={handlePreviewTemplate} />
+              <TemplateList selectedCustomer={selectedCustomer} />
             </TabPanel>
           </Box>
         </Box>

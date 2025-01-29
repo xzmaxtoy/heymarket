@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
 import { Box, Paper } from '@mui/material';
 import { Template } from './types';
+import { Customer } from '@/types/customer';
 import { useTemplateList } from './hooks/useTemplateList';
 import TemplateListToolbar from './components/TemplateListToolbar';
 import TemplateDataGrid from './components/TemplateDataGrid';
 import TemplateFormDialog from './components/TemplateFormDialog';
+import TemplatePreviewDialog from './components/TemplatePreviewDialog';
 
 interface TemplateListProps {
-  onPreviewClick: (template: Template) => void;
+  selectedCustomer?: Customer;
 }
 
 export const TemplateList: React.FC<TemplateListProps> = ({
-  onPreviewClick,
+  selectedCustomer,
 }) => {
   const {
     templates,
@@ -25,11 +27,16 @@ export const TemplateList: React.FC<TemplateListProps> = ({
     onPageChange,
     onPageSizeChange,
     onTemplateSelect,
+    reloadTemplates,
   } = useTemplateList();
 
   // Form dialog state
   const [formOpen, setFormOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<Template | undefined>();
+
+  // Preview dialog state
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewTemplate, setPreviewTemplate] = useState<Template | undefined>();
 
   const handleCreateClick = () => {
     setEditingTemplate(undefined);
@@ -41,9 +48,24 @@ export const TemplateList: React.FC<TemplateListProps> = ({
     setFormOpen(true);
   };
 
+  const handlePreviewClick = (template: Template) => {
+    setPreviewTemplate(template);
+    setPreviewOpen(true);
+  };
+
   const handleFormClose = () => {
     setFormOpen(false);
     setEditingTemplate(undefined);
+  };
+
+  const handlePreviewClose = () => {
+    setPreviewOpen(false);
+    setPreviewTemplate(undefined);
+  };
+
+  const handleFormSuccess = () => {
+    handleFormClose();
+    reloadTemplates();
   };
 
   return (
@@ -64,7 +86,7 @@ export const TemplateList: React.FC<TemplateListProps> = ({
           onPageChange={onPageChange}
           onPageSizeChange={onPageSizeChange}
           onTemplateSelect={onTemplateSelect}
-          onPreviewClick={onPreviewClick}
+          onPreviewClick={handlePreviewClick}
           onEditClick={handleEditClick}
           onDeleteClick={onDeleteTemplate}
         />
@@ -74,7 +96,17 @@ export const TemplateList: React.FC<TemplateListProps> = ({
         open={formOpen}
         onClose={handleFormClose}
         template={editingTemplate}
+        onSuccess={handleFormSuccess}
       />
+
+      {previewTemplate && (
+        <TemplatePreviewDialog
+          open={previewOpen}
+          onClose={handlePreviewClose}
+          template={previewTemplate}
+          customer={selectedCustomer}
+        />
+      )}
     </Box>
   );
 };
