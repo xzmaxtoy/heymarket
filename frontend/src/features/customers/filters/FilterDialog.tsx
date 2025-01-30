@@ -91,14 +91,25 @@ const FilterDialog: React.FC<FilterDialogProps> = ({
   };
 
   const handleSaveFilter = async () => {
-    const name = prompt('Enter a name for this filter:');
-    if (name) {
-      const newFilter: SavedFilter = {
-        id: crypto.randomUUID(),
-        name,
+    if (selectedFilter) {
+      // Update existing filter
+      const updatedFilter: SavedFilter = {
+        ...selectedFilter,
         filter: currentFilter,
       };
-      await dispatch(saveFilter(newFilter));
+      await dispatch(saveFilter(updatedFilter));
+      handleMenuClose();
+    } else {
+      // Create new filter
+      const name = prompt('Enter a name for this filter:');
+      if (name) {
+        const newFilter: SavedFilter = {
+          id: crypto.randomUUID(),
+          name,
+          filter: currentFilter,
+        };
+        await dispatch(saveFilter(newFilter));
+      }
     }
   };
 
@@ -109,17 +120,12 @@ const FilterDialog: React.FC<FilterDialogProps> = ({
     }
   };
 
-  const convertAndApplyFilter = useCallback((savedFilter: SavedFilter) => {
+  const handleLoadFilter = (savedFilter: SavedFilter) => {
     const newFilter: Filter = {
       conditions: savedFilter.filter.conditions,
       operator: savedFilter.filter.operator,
     };
     setCurrentFilter(newFilter);
-    onApply(newFilter);
-  }, [onApply]);
-
-  const handleLoadFilter = (filter: SavedFilter) => {
-    convertAndApplyFilter(filter);
   };
 
   return (
@@ -170,6 +176,10 @@ const FilterDialog: React.FC<FilterDialogProps> = ({
           open={Boolean(menuAnchor)}
           onClose={handleMenuClose}
         >
+          <MenuItem onClick={handleSaveFilter}>
+            <SaveIcon sx={{ mr: 1 }} />
+            Update Filter
+          </MenuItem>
           <MenuItem onClick={handleDeleteFilter}>
             <DeleteIcon sx={{ mr: 1 }} />
             Delete Filter
