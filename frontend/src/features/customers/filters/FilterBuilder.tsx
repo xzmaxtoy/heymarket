@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useCallback, useRef } from 'react';
+import debounce from 'lodash/debounce';
 import {
   Box,
   Button,
@@ -64,98 +65,130 @@ export const FilterBuilder: React.FC<FilterBuilderProps> = ({ filter = defaultFi
     setIsInitialLoad(false);
   }, [filter]);
 
-  const notifyChange = React.useCallback((newGroups: GroupWithId[]) => {
+  // Create a debounced version of onChange that persists between renders
+  const debouncedOnChange = useRef(
+    debounce((filter: Filter) => {
+      onChange(filter);
+    }, 300)
+  ).current;
+
+  // Cleanup debounce on unmount
+  React.useEffect(() => {
+    return () => {
+      debouncedOnChange.cancel();
+    };
+  }, [debouncedOnChange]);
+
+  const notifyChange = useCallback((newGroups: GroupWithId[]) => {
     if (!isInitialLoad && newGroups.length > 0) {
-      onChange({
+      debouncedOnChange({
         conditions: newGroups[0].conditions,
         operator: newGroups[0].operator
       });
     }
-  }, [onChange, isInitialLoad]);
+  }, [debouncedOnChange, isInitialLoad]);
 
-  const addGroup = () => {
-    const newGroups = [
-      ...groups,
-      {
-        id: uuidv4(),
-        operator: GridLogicOperator.And,
-        conditions: [],
-      },
-    ];
-    setGroups(newGroups);
-    notifyChange(newGroups);
-  };
+  const addGroup = useCallback(() => {
+    setGroups((prevGroups) => {
+      const newGroups = [
+        ...prevGroups,
+        {
+          id: uuidv4(),
+          operator: GridLogicOperator.And,
+          conditions: [],
+        },
+      ];
+      notifyChange(newGroups);
+      return newGroups;
+    });
+  }, [notifyChange]);
 
-  const removeGroup = (groupId: string) => {
-    const newGroups = groups.filter((g) => g.id !== groupId);
-    setGroups(newGroups);
-    notifyChange(newGroups);
-  };
+  const removeGroup = useCallback((groupId: string) => {
+    setGroups((prevGroups) => {
+      const newGroups = prevGroups.filter((g) => g.id !== groupId);
+      notifyChange(newGroups);
+      return newGroups;
+    });
+  }, [notifyChange]);
 
-  const addCondition = (groupId: string) => {
-    const newGroups = groups.map((group) =>
-      group.id === groupId
-        ? {
-            ...group,
-            conditions: [
-              ...group.conditions,
-              {
-                id: uuidv4(),
-                field: 'name',
-                operator: 'equals' as FilterOperator,
-                value: null,
-              },
-            ],
-          }
-        : group
-    );
-    setGroups(newGroups);
-    notifyChange(newGroups);
-  };
+  const addCondition = useCallback((groupId: string) => {
+    setGroups((prevGroups) => {
+      const newGroups = prevGroups.map((group) =>
+        group.id === groupId
+          ? {
+              ...group,
+              conditions: [
+                ...group.conditions,
+                {
+                  id: uuidv4(),
+                  field: 'name',
+                  operator: 'equals' as FilterOperator,
+                  value: null,
+                },
+              ],
+            }
+          : group
+      );
+      notifyChange(newGroups);
+      return newGroups;
+    });
+  }, [notifyChange]);
 
-  const removeCondition = (groupId: string, conditionId: string) => {
-    const newGroups = groups.map((group) =>
-      group.id === groupId
-        ? {
-            ...group,
-            conditions: group.conditions.filter((c) => c.id !== conditionId),
-          }
-        : group
-    );
-    setGroups(newGroups);
-    notifyChange(newGroups);
-  };
+  const removeCondition = useCallback((groupId: string, conditionId: string) => {
+    setGroups((prevGroups) => {
+      const newGroups = prevGroups.map((group) =>
+        group.id === groupId
+          ? {
+              ...group,
+              conditions: group.conditions.filter((c) => c.id !== conditionId),
+            }
+          : group
+      );
+      notifyChange(newGroups);
+      return newGroups;
+    });
+  }, [notifyChange]);
 
-  const updateCondition = (
-    groupId: string,
-    conditionId: string,
-    updates: Partial<FilterCondition>
-  ) => {
-    const newGroups = groups.map((group) =>
-      group.id === groupId
-        ? {
-            ...group,
-            conditions: group.conditions.map((condition) =>
-              condition.id === conditionId
-                ? { ...condition, ...updates }
-                : condition
-            ),
-          }
-        : group
-    );
-    setGroups(newGroups);
-    notifyChange(newGroups);
-  };
+  const updateCondition = useCallback(
+    (
+      groupId: string,
+      conditionId: string,
+      updates: Partial<FilterCondition>
+    ) => {
+      setGroups((prevGroups) => {
+        const newGroups = prevGroups.map((group) =>
+          group.id === groupId
+            ? {
+                ...group,
+                conditions: group.conditions.map((condition) =>
+                  condition.id === conditionId
+                    ? { ...condition, ...updates }
+                    : condition
+                ),
+              }
+            : group
+        );
+        notifyChange(newGroups);
+        return newGroups;
+      });
+    },
+    [notifyChange]
+  );
 
-  const updateGroupLogic = (groupId: string, operator: LogicalOperator) => {
-    const newGroups = groups.map((group) =>
-      group.id === groupId ? { ...group, operator } : group
-    );
-    setGroups(newGroups);
-    notifyChange(newGroups);
-  };
+  const updateGroupLogic = useCallback(
+    (groupId: string, operator: LogicalOperator) => {
+      setGroups((prevGroups) => {
+        const newGroups = prevGroups.map((group) =>
+          group.id === groupId ? { ...group, operator } : group
+        );
+        notifyChange(newGroups);
+        return newGroups;
+      });
+    },
+    [notifyChange]
+  );
 
-  const renderValueInput = (groupId: string, condition: ConditionWithId) => {
+  const renderValueInput = useCallback((groupId: string, condition: ConditionWithId) => {
     const fieldType = FIELD_TYPES[condition.field];
 
     if (condition.operator === 'is_empty' || condition.operator === 'is_not_empty') {
@@ -234,7 +267,7 @@ export const FilterBuilder: React.FC<FilterBuilderProps> = ({ filter = defaultFi
         fullWidth
       />
     );
-  };
+  }, [updateCondition]);
 
   return (
     <Box>
