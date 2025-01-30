@@ -7,6 +7,7 @@ import yaml from 'js-yaml';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { initWebSocket } from './websocket/server.js';
 import config from './config/config.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -99,6 +100,9 @@ const server = app.listen(port, () => {
   console.log(`Environment: ${process.env.NODE_ENV}`);
   console.log(`Process ID: ${process.pid}`);
 });
+
+// Initialize WebSocket server
+initWebSocket(server);
 
 // Handle shutdown gracefully
 process.on('SIGTERM', () => {

@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.1] - 2025-01-30
+
+### Fixed
+- WebSocket connection issues by properly initializing WebSocket server in backend
+- CORS configuration for WebSocket server to allow both frontend development and production URLs
+- WebSocket server import in main server file
+
+### Technical Details
+- Updated src/websocket/server.js with proper CORS configuration
+- Added missing WebSocket server import in src/index.js
+- Fixed WebSocket port configuration to match frontend settings
+
 ## [2.1.0] - 2024-12-29 (Stable)
 
 ### Added
