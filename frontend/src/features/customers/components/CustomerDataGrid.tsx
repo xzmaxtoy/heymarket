@@ -2,7 +2,7 @@ import React from 'react';
 import { DataGrid, GridColDef, GridPaginationModel, GridRowSelectionModel } from '@mui/x-data-grid';
 import { Customer } from '@/types/customer';
 import { CustomerTableToolbar } from './CustomerTableToolbar';
-import { FilterGroup, SavedFilter } from '../filters/types';
+import { Filter, FilterGroup, SavedFilter } from '../filters/types';
 
 interface CustomerDataGridProps {
   customers: Customer[];
@@ -19,9 +19,9 @@ interface CustomerDataGridProps {
   onSelectionChange: (selectedIds: string[], selectedCustomers: Customer[]) => void;
   onColumnSelectorOpen: () => void;
   activeFilters: FilterGroup[];
-  onFiltersChange: (filters: FilterGroup[]) => void;
+  onFiltersChange: (filter: Filter) => void;
   savedFilters: SavedFilter[];
-  onSaveFilter: (filter: SavedFilter) => void;
+  onSaveFilter: (name: string, filter: Filter) => void;
   onDeleteFilter: (filterId: string) => void;
   onSelectAllFiltered?: () => void;
 }

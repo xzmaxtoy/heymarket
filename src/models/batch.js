@@ -5,6 +5,7 @@ import { addHeymarketAuth } from '../middleware/auth.js';
 import { Template, getTemplate } from './template.js';
 import { isDuplicateMessage, recordMessage } from '../utils/messageHistory.js';
 import { employeeList } from '../utils/employeeList.js';
+import { emitBatchUpdate, emitBatchError, emitBatchComplete } from '../websocket/server.js';
 
 const sleep = promisify(setTimeout);
 
@@ -78,6 +79,9 @@ class Batch {
     const totalTime = this.recipients.length * PRIORITY_DELAYS[this.options.priority];
     const estimatedCompletion = new Date(Date.now() + totalTime);
     this.timing.estimated_completion = estimatedCompletion.toISOString();
+
+    // Emit initial processing state
+    emitBatchUpdate(this.id, this.getState());
 
     const startTime = Date.now();
     let successCount = 0;
@@ -277,11 +281,15 @@ class Batch {
       this.metrics.messages_per_second = (this.progress.completed + this.progress.failed) / elapsedSeconds;
       this.metrics.success_rate = (successCount / (this.progress.completed + this.progress.failed)) * 100;
 
+      // Emit progress update
+      emitBatchUpdate(this.id, this.getState());
+
       // Respect priority-based rate limiting
       await sleep(PRIORITY_DELAYS[this.options.priority]);
     }
 
     this.status = 'completed';
+    emitBatchComplete(this.id, this.getState());
   }
 
   /**
@@ -367,17 +375,23 @@ async function createBatch(templateData, recipients, options, auth) {
   const batch = new Batch(batchId, template, recipients, options);
   batches.set(batchId, batch);
 
-  // Start processing
-  batch.start(auth).catch(error => {
-    console.error('Batch processing error:', error);
-    batch.status = 'failed';
-    batch.errors.categories['system'] = (batch.errors.categories['system'] || 0) + 1;
-    batch.errors.samples.push({
-      error: error.message,
-      category: 'system',
-      timestamp: new Date().toISOString()
+  // Only start processing if autoStart is true
+  if (options.autoStart) {
+    batch.start(auth).catch(error => {
+      console.error('Batch processing error:', error);
+      batch.status = 'failed';
+      batch.errors.categories['system'] = (batch.errors.categories['system'] || 0) + 1;
+      batch.errors.samples.push({
+        error: error.message,
+        category: 'system',
+        timestamp: new Date().toISOString()
+      });
+      emitBatchError(batch.id, {
+        error: error.message,
+        state: batch.getState()
+      });
     });
-  });
+  }
 
   // Clean up old batches after 1 hour
   setTimeout(() => {

@@ -5,6 +5,22 @@ All notable changes to the Batch SMS Frontend will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Real-time Batch Updates
+  * WebSocket integration for live status updates
+  * Automatic batch status synchronization
+  * Connection management with reconnection strategy
+  * Event-based state updates
+  * Subscription management for active batches
+  * Error handling and recovery
+  * Memory cleanup for completed batches
+
+- Batch Status Synchronization
+  * Added resume endpoint for batch control
+  * Improved batch lifecycle management
+  * Status transition handling (pending -> processing -> completed)
+  * Proper error handling for batch operations
+  * Foundation for WebSocket integration
+
 - Batch Start Functionality
   * Start pending batches immediately
   * Loading states for batch actions

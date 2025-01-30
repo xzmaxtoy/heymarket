@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Container, CssBaseline, Tab, Tabs } from '@mui/material';
 import { Provider } from 'react-redux';
 import { store } from './store';
 import CustomerSelection from './features/customers/CustomerSelection';
 import TemplateList from './features/templates/TemplateList';
 import BatchList from './features/batches/BatchList';
+import { initializeWebSocket, closeWebSocket } from './services/websocket';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -35,6 +36,14 @@ function TabPanel(props: TabPanelProps) {
 
 const App: React.FC = () => {
   const [currentTab, setCurrentTab] = useState(0);
+
+  // Initialize WebSocket connection
+  useEffect(() => {
+    initializeWebSocket();
+    return () => {
+      closeWebSocket();
+    };
+  }, []);
 
   return (
     <Provider store={store}>

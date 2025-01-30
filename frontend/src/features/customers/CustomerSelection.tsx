@@ -15,18 +15,20 @@ import {
   setActiveFilters,
   addSavedFilter,
   removeSavedFilter,
+  clearSavedFilters,
   setVisibleColumns,
   setPageSize,
   setCurrentPage,
 } from '@/store/slices/customersSlice';
 import { fetchCustomers, selectAllFilteredCustomers } from '@/store/thunks/customerThunks';
 import { loadColumnVisibility, loadSavedFilters } from '@/store/thunks/settingsThunks';
-import { ALL_COLUMNS, DEFAULT_COLUMNS } from '@/types/customer';
-import { FilterGroup, SavedFilter } from './filters/types';
+import { ALL_COLUMNS, DEFAULT_COLUMNS, Customer } from '@/types/customer';
+import { Filter, FilterGroup, SavedFilter } from './filters/types';
 import CustomerDataGrid from './components/CustomerDataGrid';
 import ColumnSelector from './components/ColumnSelector';
 import FilterDialog from './filters/FilterDialog';
 import BatchCreationDialog from '../batches/components/BatchCreationDialog';
+import { GridLogicOperator } from '@mui/x-data-grid';
 
 export const CustomerSelection: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -47,15 +49,19 @@ export const CustomerSelection: React.FC = () => {
   const [searchText, setSearchText] = React.useState('');
   const [batchDialogOpen, setBatchDialogOpen] = React.useState(false);
 
-  // Load saved settings
+  // Load saved settings and filters
   useEffect(() => {
     const loadSettings = async () => {
+      // Clear existing filters
+      dispatch(clearSavedFilters());
+      
       // Load column visibility settings
       await dispatch(loadColumnVisibility());
       // If no saved columns, use defaults
       if (visibleColumns.size === 0) {
         dispatch(setVisibleColumns(DEFAULT_COLUMNS.map(col => col.field)));
       }
+      
       // Load saved filters
       await dispatch(loadSavedFilters());
     };
@@ -88,16 +94,28 @@ export const CustomerSelection: React.FC = () => {
     }));
 
   // Handlers
-  const handleSelectionChange = (newSelection: string[]) => {
-    dispatch(setSelectedCustomers(newSelection));
+  const handleSelectionChange = (selectedIds: string[], selectedCustomers: Customer[]) => {
+    dispatch(setSelectedCustomers(selectedIds));
   };
 
-  const handleFiltersChange = (filters: FilterGroup[]) => {
-    dispatch(setActiveFilters(filters));
+  const handleFiltersChange = (filter: Filter) => {
+    dispatch(setActiveFilters([{
+      id: crypto.randomUUID(),
+      conditions: filter.conditions.map(condition => ({
+        ...condition,
+        id: condition.id || crypto.randomUUID()
+      })),
+      operator: filter.operator || GridLogicOperator.And,
+    }]));
   };
 
-  const handleSaveFilter = (filter: SavedFilter) => {
-    dispatch(addSavedFilter(filter));
+  const handleSaveFilter = (name: string, filter: Filter) => {
+    const savedFilter: SavedFilter = {
+      id: crypto.randomUUID(),
+      name,
+      filter,
+    };
+    dispatch(addSavedFilter(savedFilter));
   };
 
   const handleDeleteFilter = (filterId: string) => {
@@ -187,7 +205,6 @@ export const CustomerSelection: React.FC = () => {
         savedFilters={savedFilters}
         onSaveFilter={handleSaveFilter}
         onDeleteFilter={handleDeleteFilter}
-        activeFilters={activeFilters}
       />
 
       <BatchCreationDialog

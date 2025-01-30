@@ -23,6 +23,12 @@ export const BATCH_STATUS_LABELS: Record<BatchStatus, string> = {
   cancelled: 'Cancelled',
 } as const;
 
+export interface BatchError {
+  message: string;
+  category: string;
+  timestamp: string;
+}
+
 export interface Batch {
   id: string;
   name: string;
@@ -37,6 +43,11 @@ export interface Batch {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  errors?: {
+    message: string;
+    timestamp: string;
+    category?: string;
+  }[];
 }
 
 export interface BatchFilter {

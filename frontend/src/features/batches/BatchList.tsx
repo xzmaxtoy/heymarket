@@ -16,6 +16,7 @@ import BatchListToolbar from './components/BatchListToolbar';
 import BatchStatusChip from './components/BatchStatusChip';
 import BatchProgress from './components/BatchProgress';
 import BatchActions from './components/BatchActions';
+import { subscribeToBatch, unsubscribeFromBatch } from '@/services/websocket';
 
 export const BatchList: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -28,6 +29,25 @@ export const BatchList: React.FC = () => {
   React.useEffect(() => {
     dispatch(fetchBatches({ page: currentPage + 1, pageSize, filter }));
   }, [dispatch, currentPage, pageSize, filter]);
+
+  // Subscribe to batch updates
+  React.useEffect(() => {
+    // Subscribe to all visible batches
+    batches.forEach(batch => {
+      if (batch.status === 'processing' || batch.status === 'pending') {
+        subscribeToBatch(batch.id);
+      }
+    });
+
+    // Cleanup subscriptions
+    return () => {
+      batches.forEach(batch => {
+        if (batch.status === 'processing' || batch.status === 'pending') {
+          unsubscribeFromBatch(batch.id);
+        }
+      });
+    };
+  }, [batches]);
 
   const handleRefreshBatch = (batchId: string) => {
     dispatch(fetchBatches({ page: currentPage + 1, pageSize, filter }));

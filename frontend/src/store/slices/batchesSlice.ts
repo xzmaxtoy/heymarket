@@ -100,6 +100,14 @@ const batchesSlice = createSlice({
     resetCreation: (state) => {
       state.creation = initialState.creation;
     },
+    // WebSocket update action
+    updateBatch: (state, action: PayloadAction<{ id: string; changes: Partial<Batch> }>) => {
+      const { id, changes } = action.payload;
+      const batchIndex = state.items.findIndex(batch => batch.id === id);
+      if (batchIndex !== -1) {
+        state.items[batchIndex] = { ...state.items[batchIndex], ...changes };
+      }
+    },
   },
 });
 
@@ -126,6 +134,7 @@ export const {
   setTemplate,
   setScheduledFor,
   resetCreation,
+  updateBatch,
 } = batchesSlice.actions;
 
 export default batchesSlice.reducer;

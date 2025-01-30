@@ -337,4 +337,67 @@ router.get('/:batchId/errors', (req, res) => {
   }
 });
 
+// Resume batch processing
+router.post('/:batchId/resume', (req, res) => {
+  try {
+    const { batchId } = req.params;
+    console.log('Resuming batch:', batchId);
+
+    const batch = getBatch(batchId);
+    if (!batch) {
+      return res.status(404).json({
+        success: false,
+        error: 'Batch not found',
+        message: 'Invalid batch ID or status expired'
+      });
+    }
+
+    if (batch.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid batch status',
+        message: 'Only pending batches can be resumed'
+      });
+    }
+
+    // Start batch processing with auth from request
+    batch.start({
+      apiKey: req.apiKey,
+      headers: req.headers
+    }).catch(error => {
+      console.error('Batch processing error:', error);
+      batch.status = 'failed';
+      batch.errors.categories['system'] = (batch.errors.categories['system'] || 0) + 1;
+      batch.errors.samples.push({
+        error: error.message,
+        category: 'system',
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    // Log resume request
+    console.log('Batch resumed:', {
+      timestamp: new Date().toISOString(),
+      batchId,
+      requestId: req.headers['x-request-id'] || 'no-request-id',
+      auth: {
+        hasApiKey: !!req.apiKey,
+        keyPrefix: req.apiKey ? req.apiKey.substring(0, 8) + '...' : 'none'
+      }
+    });
+
+    res.json({
+      success: true,
+      data: batch.getState()
+    });
+  } catch (error) {
+    console.error('Error resuming batch:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to resume batch',
+      message: error.message
+    });
+  }
+});
+
 export default router;
