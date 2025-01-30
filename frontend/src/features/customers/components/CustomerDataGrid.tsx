@@ -20,6 +20,7 @@ interface CustomerDataGridProps {
   onColumnSelectorOpen: () => void;
   activeFilters: FilterGroup[];
   onFiltersChange: (filter: Filter) => void;
+  onClearFilters: () => void;
   savedFilters: SavedFilter[];
   onSaveFilter: (name: string, filter: Filter) => void;
   onDeleteFilter: (filterId: string) => void;
@@ -42,6 +43,7 @@ export const CustomerDataGrid: React.FC<CustomerDataGridProps> = ({
   onColumnSelectorOpen,
   activeFilters,
   onFiltersChange,
+  onClearFilters,
   savedFilters,
   onSaveFilter,
   onDeleteFilter,
@@ -70,6 +72,7 @@ export const CustomerDataGrid: React.FC<CustomerDataGridProps> = ({
     onSearchChange,
     activeFilters,
     onFiltersChange,
+    onClearFilters,
     savedFilters,
     onSaveFilter,
     onDeleteFilter,
