@@ -1,5 +1,4 @@
-import React, { useCallback, useRef } from 'react';
-import debounce from 'lodash/debounce';
+import React from 'react';
 import {
   Box,
   Button,
@@ -27,6 +26,7 @@ import {
 import { DateFilterInput } from './DateFilterInput';
 import { v4 as uuidv4 } from 'uuid';
 import { GridLogicOperator } from '@mui/x-data-grid';
+import { debounce } from 'lodash';
 
 interface FilterBuilderProps {
   filter?: Filter;
@@ -65,130 +65,101 @@ export const FilterBuilder: React.FC<FilterBuilderProps> = ({ filter = defaultFi
     setIsInitialLoad(false);
   }, [filter]);
 
-  // Create a debounced version of onChange that persists between renders
-  const debouncedOnChange = useRef(
-    debounce((filter: Filter) => {
-      onChange(filter);
-    }, 300)
-  ).current;
-
-  // Cleanup debounce on unmount
-  React.useEffect(() => {
-    return () => {
-      debouncedOnChange.cancel();
-    };
-  }, [debouncedOnChange]);
-
-  const notifyChange = useCallback((newGroups: GroupWithId[]) => {
-    if (!isInitialLoad && newGroups.length > 0) {
-      debouncedOnChange({
-        conditions: newGroups[0].conditions,
-        operator: newGroups[0].operator
-      });
-    }
-  }, [debouncedOnChange, isInitialLoad]);
-
-  const addGroup = useCallback(() => {
-    setGroups((prevGroups) => {
-      const newGroups = [
-        ...prevGroups,
-        {
-          id: uuidv4(),
-          operator: GridLogicOperator.And,
-          conditions: [],
-        },
-      ];
-      notifyChange(newGroups);
-      return newGroups;
-    });
-  }, [notifyChange]);
-
-  const removeGroup = useCallback((groupId: string) => {
-    setGroups((prevGroups) => {
-      const newGroups = prevGroups.filter((g) => g.id !== groupId);
-      notifyChange(newGroups);
-      return newGroups;
-    });
-  }, [notifyChange]);
-
-  const addCondition = useCallback((groupId: string) => {
-    setGroups((prevGroups) => {
-      const newGroups = prevGroups.map((group) =>
-        group.id === groupId
-          ? {
-              ...group,
-              conditions: [
-                ...group.conditions,
-                {
-                  id: uuidv4(),
-                  field: 'name',
-                  operator: 'equals' as FilterOperator,
-                  value: null,
-                },
-              ],
-            }
-          : group
-      );
-      notifyChange(newGroups);
-      return newGroups;
-    });
-  }, [notifyChange]);
-
-  const removeCondition = useCallback((groupId: string, conditionId: string) => {
-    setGroups((prevGroups) => {
-      const newGroups = prevGroups.map((group) =>
-        group.id === groupId
-          ? {
-              ...group,
-              conditions: group.conditions.filter((c) => c.id !== conditionId),
-            }
-          : group
-      );
-      notifyChange(newGroups);
-      return newGroups;
-    });
-  }, [notifyChange]);
-
-  const updateCondition = useCallback(
-    (
-      groupId: string,
-      conditionId: string,
-      updates: Partial<FilterCondition>
-    ) => {
-      setGroups((prevGroups) => {
-        const newGroups = prevGroups.map((group) =>
-          group.id === groupId
-            ? {
-                ...group,
-                conditions: group.conditions.map((condition) =>
-                  condition.id === conditionId
-                    ? { ...condition, ...updates }
-                    : condition
-                ),
-              }
-            : group
-        );
-        notifyChange(newGroups);
-        return newGroups;
-      });
-    },
-    [notifyChange]
+  const notifyChange = React.useCallback(
+    debounce((newGroups: GroupWithId[]) => {
+      if (!isInitialLoad && newGroups.length > 0) {
+        onChange({
+          conditions: newGroups[0].conditions,
+          operator: newGroups[0].operator
+        });
+      }
+    }, 800),
+    [onChange, isInitialLoad]
   );
 
-  const updateGroupLogic = useCallback(
-    (groupId: string, operator: LogicalOperator) => {
-      setGroups((prevGroups) => {
-        const newGroups = prevGroups.map((group) =>
-          group.id === groupId ? { ...group, operator } : group
-        );
-        notifyChange(newGroups);
-        return newGroups;
-      });
-    },
-    [notifyChange]
-  );
+  const addGroup = () => {
+    const newGroups = [
+      ...groups,
+      {
+        id: uuidv4(),
+        operator: GridLogicOperator.And,
+        conditions: [],
+      },
+    ];
+    setGroups(newGroups);
+    notifyChange(newGroups);
+  };
 
-  const renderValueInput = useCallback((groupId: string, condition: ConditionWithId) => {
+  const removeGroup = (groupId: string) => {
+    const newGroups = groups.filter((g) => g.id !== groupId);
+    setGroups(newGroups);
+    notifyChange(newGroups);
+  };
+
+  const addCondition = (groupId: string) => {
+    const newGroups = groups.map((group) =>
+      group.id === groupId
+        ? {
+            ...group,
+            conditions: [
+              ...group.conditions,
+              {
+                id: uuidv4(),
+                field: 'name',
+                operator: 'equals' as FilterOperator,
+                value: null,
+              },
+            ],
+          }
+        : group
+    );
+    setGroups(newGroups);
+    notifyChange(newGroups);
+  };
+
+  const removeCondition = (groupId: string, conditionId: string) => {
+    const newGroups = groups.map((group) =>
+      group.id === groupId
+        ? {
+            ...group,
+            conditions: group.conditions.filter((c) => c.id !== conditionId),
+          }
+        : group
+    );
+    setGroups(newGroups);
+    notifyChange(newGroups);
+  };
+
+  const updateCondition = (
+    groupId: string,
+    conditionId: string,
+    updates: Partial<FilterCondition>
+  ) => {
+    const newGroups = groups.map((group) =>
+      group.id === groupId
+        ? {
+            ...group,
+            conditions: group.conditions.map((condition) =>
+              condition.id === conditionId
+                ? { ...condition, ...updates }
+                : condition
+            ),
+          }
+        : group
+    );
+    setGroups(newGroups);
+    notifyChange(newGroups);
+  };
+
+  const updateGroupLogic = (groupId: string, operator: LogicalOperator) => {
+    const newGroups = groups.map((group) =>
+      group.id === groupId ? { ...group, operator } : group
+    );
+    setGroups(newGroups);
+    notifyChange(newGroups);
+  };
+
+  const renderValueInput = (groupId: string, condition: ConditionWithId) => {
     const fieldType = FIELD_TYPES[condition.field];
 
     if (condition.operator === 'is_empty' || condition.operator === 'is_not_empty') {
@@ -267,7 +238,7 @@ export const FilterBuilder: React.FC<FilterBuilderProps> = ({ filter = defaultFi
         fullWidth
       />
     );
-  }, [updateCondition]);
+  };
 
   return (
     <Box>
