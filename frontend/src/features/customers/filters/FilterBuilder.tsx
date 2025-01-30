@@ -21,6 +21,7 @@ import {
   OPERATORS_BY_TYPE,
   OPERATOR_LABELS,
   FIELD_LABELS,
+  FilterOperator,
 } from './types';
 import { DateFilterInput } from './DateFilterInput';
 import { v4 as uuidv4 } from 'uuid';
@@ -46,73 +47,83 @@ const defaultFilter: Filter = {
 };
 
 export const FilterBuilder: React.FC<FilterBuilderProps> = ({ filter = defaultFilter, onChange }) => {
-  // Convert Filter to FilterGroup array and ensure all conditions have IDs
-  const [groups, setGroups] = React.useState<GroupWithId[]>([{
-    id: uuidv4(),
-    conditions: (filter?.conditions || []).map(condition => ({
-      ...condition,
-      id: condition.id || uuidv4()
-    })),
-    operator: filter?.operator || GridLogicOperator.And
-  }]);
+  const [groups, setGroups] = React.useState<GroupWithId[]>([]);
+  const [isInitialLoad, setIsInitialLoad] = React.useState(true);
 
-  // Update parent when groups change
+  // Initialize groups when filter changes
   React.useEffect(() => {
-    if (groups.length > 0) {
+    const newGroups: GroupWithId[] = [{
+      id: uuidv4(),
+      conditions: (filter?.conditions || []).map(condition => ({
+        ...condition,
+        id: condition.id || uuidv4()
+      })),
+      operator: filter?.operator || GridLogicOperator.And
+    }];
+    setGroups(newGroups);
+    setIsInitialLoad(false);
+  }, [filter]);
+
+  const notifyChange = React.useCallback((newGroups: GroupWithId[]) => {
+    if (!isInitialLoad && newGroups.length > 0) {
       onChange({
-        conditions: groups[0].conditions,
-        operator: groups[0].operator
+        conditions: newGroups[0].conditions,
+        operator: newGroups[0].operator
       });
     }
-  }, [groups, onChange]);
+  }, [onChange, isInitialLoad]);
 
   const addGroup = () => {
-    setGroups([
+    const newGroups = [
       ...groups,
       {
         id: uuidv4(),
         operator: GridLogicOperator.And,
         conditions: [],
       },
-    ]);
+    ];
+    setGroups(newGroups);
+    notifyChange(newGroups);
   };
 
   const removeGroup = (groupId: string) => {
-    setGroups(groups.filter((g) => g.id !== groupId));
+    const newGroups = groups.filter((g) => g.id !== groupId);
+    setGroups(newGroups);
+    notifyChange(newGroups);
   };
 
   const addCondition = (groupId: string) => {
-    setGroups(
-      groups.map((group) =>
-        group.id === groupId
-          ? {
-              ...group,
-              conditions: [
-                ...group.conditions,
-                {
-                  id: uuidv4(),
-                  field: 'name',
-                  operator: 'equals',
-                  value: null,
-                },
-              ],
-            }
-          : group
-      )
+    const newGroups = groups.map((group) =>
+      group.id === groupId
+        ? {
+            ...group,
+            conditions: [
+              ...group.conditions,
+              {
+                id: uuidv4(),
+                field: 'name',
+                operator: 'equals' as FilterOperator,
+                value: null,
+              },
+            ],
+          }
+        : group
     );
+    setGroups(newGroups);
+    notifyChange(newGroups);
   };
 
   const removeCondition = (groupId: string, conditionId: string) => {
-    setGroups(
-      groups.map((group) =>
-        group.id === groupId
-          ? {
-              ...group,
-              conditions: group.conditions.filter((c) => c.id !== conditionId),
-            }
-          : group
-      )
+    const newGroups = groups.map((group) =>
+      group.id === groupId
+        ? {
+            ...group,
+            conditions: group.conditions.filter((c) => c.id !== conditionId),
+          }
+        : group
     );
+    setGroups(newGroups);
+    notifyChange(newGroups);
   };
 
   const updateCondition = (
@@ -120,28 +131,28 @@ export const FilterBuilder: React.FC<FilterBuilderProps> = ({ filter = defaultFi
     conditionId: string,
     updates: Partial<FilterCondition>
   ) => {
-    setGroups(
-      groups.map((group) =>
-        group.id === groupId
-          ? {
-              ...group,
-              conditions: group.conditions.map((condition) =>
-                condition.id === conditionId
-                  ? { ...condition, ...updates }
-                  : condition
-              ),
-            }
-          : group
-      )
+    const newGroups = groups.map((group) =>
+      group.id === groupId
+        ? {
+            ...group,
+            conditions: group.conditions.map((condition) =>
+              condition.id === conditionId
+                ? { ...condition, ...updates }
+                : condition
+            ),
+          }
+        : group
     );
+    setGroups(newGroups);
+    notifyChange(newGroups);
   };
 
   const updateGroupLogic = (groupId: string, operator: LogicalOperator) => {
-    setGroups(
-      groups.map((group) =>
-        group.id === groupId ? { ...group, operator } : group
-      )
+    const newGroups = groups.map((group) =>
+      group.id === groupId ? { ...group, operator } : group
     );
+    setGroups(newGroups);
+    notifyChange(newGroups);
   };
 
   const renderValueInput = (groupId: string, condition: ConditionWithId) => {
@@ -289,7 +300,7 @@ export const FilterBuilder: React.FC<FilterBuilderProps> = ({ filter = defaultFi
                         value={condition.operator}
                         onChange={(e) =>
                           updateCondition(group.id, condition.id, {
-                            operator: e.target.value as FilterCondition['operator'],
+                            operator: e.target.value as FilterOperator,
                             value: null,
                             value2: null,
                           })
