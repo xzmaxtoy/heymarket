@@ -5,6 +5,13 @@ All notable changes to the Batch SMS Frontend will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Filter Improvements
+  * Added filter chips for quick access to saved filters
+  * Added clear filter functionality
+  * Added "not contains" filter operator
+  * Improved filter loading and state management
+  * Better filter UX with visual feedback
+  * Quick apply filters from chips
 - Real-time Batch Updates
   * WebSocket integration for live status updates
   * Automatic batch status synchronization

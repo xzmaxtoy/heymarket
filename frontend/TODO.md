@@ -17,6 +17,9 @@
 - [x] Column visibility management
 - [x] Saved filters
 - [x] Export capability
+- [x] Filter chips for quick access
+- [x] Clear filter functionality
+- [x] Not contains filter operator
 
 ### Batch Creation
 - [x] Create batch from selected customers
@@ -85,6 +88,8 @@
 - [ ] Improve error messages
 - [ ] Add success notifications
 - [ ] Implement undo/redo
+- [ ] Add filter preview counts
+- [ ] Improve filter chip layout for many filters
 
 ### Advanced Features
 - [ ] Template categories
