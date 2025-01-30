@@ -18,6 +18,7 @@ const convertFiltersToSupabase = (groups: FilterGroup[]) => {
         switch (condition.operator) {
           case 'equals': return 'eq';
           case 'contains': return 'ilike';
+          case 'not_contains': return 'not.ilike';
           case 'startsWith': return 'like';
           case 'endsWith': return 'like';
           case 'greaterThan': return 'gt';
@@ -54,7 +55,7 @@ const convertFiltersToSupabase = (groups: FilterGroup[]) => {
         };
       }
 
-      if (condition.operator === 'contains') {
+      if (condition.operator === 'contains' || condition.operator === 'not_contains') {
         return {
           column: condition.field,
           operator,

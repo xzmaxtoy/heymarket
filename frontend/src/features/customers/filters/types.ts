@@ -2,7 +2,8 @@ import { GridFilterModel, GridFilterItem, GridLogicOperator } from '@mui/x-data-
 
 export type FilterOperator = 
   | 'equals' 
-  | 'contains' 
+  | 'contains'
+  | 'not_contains'
   | 'startsWith' 
   | 'endsWith' 
   | 'greaterThan' 
@@ -93,7 +94,7 @@ export const FIELD_LABELS: Record<string, string> = {
 };
 
 export const OPERATORS_BY_TYPE: Record<FieldType, FilterOperator[]> = {
-  string: ['equals', 'contains', 'startsWith', 'endsWith', 'is_empty', 'is_not_empty', 'in_list'],
+  string: ['equals', 'contains', 'not_contains', 'startsWith', 'endsWith', 'is_empty', 'is_not_empty', 'in_list'],
   number: ['equals', 'greaterThan', 'lessThan', 'between', 'is_empty', 'is_not_empty'],
   date: ['equals', 'greaterThan', 'lessThan', 'between', 'is_empty', 'is_not_empty'],
   boolean: ['equals', 'is_empty', 'is_not_empty'],
@@ -102,6 +103,7 @@ export const OPERATORS_BY_TYPE: Record<FieldType, FilterOperator[]> = {
 export const OPERATOR_LABELS: Record<FilterOperator, string> = {
   equals: 'Equals',
   contains: 'Contains',
+  not_contains: 'Does not contain',
   startsWith: 'Starts with',
   endsWith: 'Ends with',
   greaterThan: 'Greater than',
