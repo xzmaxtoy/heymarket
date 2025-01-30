@@ -158,32 +158,21 @@ export const loadSavedFilters = createAsyncThunk(
       if (!settings?.filters) return [];
 
       // Convert filters from backend format to frontend format
-      return settings.filters.map(filter => {
-        const group = filter.groups[0]; // We currently only support one group
-        if (group) {
-          return {
-            id: filter.id,
-            name: filter.name,
-            filter: {
-              conditions: group.conditions.map(condition => ({
-                id: condition.id,
-                field: condition.field,
-                operator: convertToFrontendOperator(condition.operator),
-                value: condition.value,
-              })),
-              operator: group.logic === 'AND' ? GridLogicOperator.And : GridLogicOperator.Or,
-            },
-          };
-        }
-        return {
-          id: filter.id,
-          name: filter.name,
-          filter: {
-            conditions: [],
-            operator: GridLogicOperator.And,
-          },
-        };
-      });
+      return settings.filters.map(filter => ({
+        id: filter.id,
+        name: filter.name,
+        filter: {
+          conditions: filter.groups.flatMap(group => 
+            group.conditions.map(condition => ({
+              id: condition.id,
+              field: condition.field,
+              operator: convertToFrontendOperator(condition.operator),
+              value: condition.value,
+            }))
+          ),
+          operator: filter.groups[0]?.logic === 'AND' ? GridLogicOperator.And : GridLogicOperator.Or,
+        },
+      }));
     } catch (error) {
       console.error('Error loading saved filters:', error);
       throw error;
@@ -199,16 +188,18 @@ export const saveSavedFilters = createAsyncThunk(
       const convertedFilters: SavedFilterSupabase[] = filters.map(filter => ({
         id: filter.id,
         name: filter.name,
-        groups: [{
-          id: crypto.randomUUID(),
-          logic: filter.filter.operator === GridLogicOperator.And ? 'AND' : 'OR',
-          conditions: filter.filter.conditions.map(condition => ({
-            id: condition.id || crypto.randomUUID(),
-            field: condition.field,
-            value: condition.value,
-            operator: convertToBackendOperator(condition.operator),
-          })),
-        }],
+        groups: [
+          {
+            id: crypto.randomUUID(),
+            logic: filter.filter.operator === GridLogicOperator.And ? 'AND' : 'OR',
+            conditions: filter.filter.conditions.map(condition => ({
+              id: condition.id || crypto.randomUUID(),
+              field: condition.field,
+              value: condition.value,
+              operator: convertToBackendOperator(condition.operator),
+            })),
+          },
+        ],
       }));
 
       const settings: SavedFiltersSettings = {

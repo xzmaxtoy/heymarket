@@ -21,21 +21,7 @@ import { useAppDispatch } from '@/store';
 import { loadSavedFilters } from '@/store/thunks/settingsThunks';
 import { saveFilter, deleteFilter } from '@/store/slices/customersSlice';
 
-export interface SavedFilter {
-  id: string;
-  name: string;
-  filter: Filter;
-  groups?: Array<{
-    id: string;
-    logic: 'AND' | 'OR';
-    conditions: Array<{
-      id: string;
-      field: string;
-      value: any;
-      operator: string;
-    }>;
-  }>;
-}
+import { SavedFilter } from './types';
 
 export interface FilterDialogProps {
   open: boolean;
@@ -123,32 +109,11 @@ const FilterDialog: React.FC<FilterDialogProps> = ({
     }
   };
 
-  const convertAndApplyFilter = useCallback((filter: SavedFilter) => {
-    let newFilter: Filter;
-
-    if (filter.groups && filter.groups.length > 0) {
-      // New format from Supabase
-      const group = filter.groups[0];
-      newFilter = {
-        conditions: group.conditions.map(condition => ({
-          id: condition.id,
-          field: condition.field,
-          operator: convertOperator(condition.operator),
-          value: condition.value,
-        })),
-        operator: group.logic === 'AND' ? GridLogicOperator.And : GridLogicOperator.Or,
-      };
-    } else if (filter.filter) {
-      // Old format
-      newFilter = filter.filter;
-    } else {
-      // Default empty filter
-      newFilter = {
-        conditions: [],
-        operator: GridLogicOperator.And,
-      };
-    }
-
+  const convertAndApplyFilter = useCallback((savedFilter: SavedFilter) => {
+    const newFilter: Filter = {
+      conditions: savedFilter.filter.conditions,
+      operator: savedFilter.filter.operator,
+    };
     setCurrentFilter(newFilter);
     onApply(newFilter);
   }, [onApply]);
