@@ -17,9 +17,8 @@
 - [x] Column visibility management
 - [x] Saved filters
 - [x] Export capability
-- [x] Filter chips for quick access
-- [x] Clear filter functionality
-- [x] Not contains filter operator
+- [x] "Does not contain" filter operator
+- [x] Fix filter group state management
 
 ### Batch Creation
 - [x] Create batch from selected customers
@@ -88,8 +87,6 @@
 - [ ] Improve error messages
 - [ ] Add success notifications
 - [ ] Implement undo/redo
-- [ ] Add filter preview counts
-- [ ] Improve filter chip layout for many filters
 
 ### Advanced Features
 - [ ] Template categories
@@ -143,3 +140,4 @@
 - Analytics data structure
 - Error handling policy
 - Monitoring approach
+- Filter state persistence strategy
