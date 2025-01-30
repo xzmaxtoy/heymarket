@@ -50,9 +50,15 @@ const defaultFilter: Filter = {
 export const FilterBuilder: React.FC<FilterBuilderProps> = ({ filter = defaultFilter, onChange }) => {
   const [groups, setGroups] = React.useState<GroupWithId[]>([]);
   const [isInitialLoad, setIsInitialLoad] = React.useState(true);
+  const isInternalChange = React.useRef(false);
 
-  // Initialize groups when filter changes
+  // Initialize groups when filter changes from external sources
   React.useEffect(() => {
+    if (isInternalChange.current) {
+      isInternalChange.current = false;
+      return;
+    }
+
     const newGroups: GroupWithId[] = [{
       id: uuidv4(),
       conditions: (filter?.conditions || []).map(condition => ({
@@ -68,12 +74,13 @@ export const FilterBuilder: React.FC<FilterBuilderProps> = ({ filter = defaultFi
   const notifyChange = React.useCallback(
     debounce((newGroups: GroupWithId[]) => {
       if (!isInitialLoad && newGroups.length > 0) {
+        isInternalChange.current = true;
         onChange({
           conditions: newGroups[0].conditions,
           operator: newGroups[0].operator
         });
       }
-    }, 800),
+    }, 300),
     [onChange, isInitialLoad]
   );
 
