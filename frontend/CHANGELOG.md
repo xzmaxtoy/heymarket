@@ -131,6 +131,7 @@ All notable changes to the Batch SMS Frontend will be documented in this file.
   * Better component integration
 
 ### Fixed
+- Date serialization in batch creation to prevent Redux errors with non-serializable dayjs objects
 - Template list refresh after operations
 - Variable detection in templates
 - Variable substitution with customer data
