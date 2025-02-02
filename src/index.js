@@ -22,9 +22,16 @@ const app = express();
 
 // Configure CORS
 app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  origin: process.env.NODE_ENV === 'production' ? 'https://your-production-domain.com' : 'http://localhost:5173',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Creator-Id',
+    'X-Inbox-Id',
+    'X-Request-Id'
+  ],
+  credentials: true
 }));
 
 // Basic security middleware with CSS, images, and external scripts enabled

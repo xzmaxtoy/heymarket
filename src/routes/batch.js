@@ -4,6 +4,149 @@ import { requestLogger, getRequestHistory } from '../middleware/requestLogger.js
 
 const router = express.Router();
 
+// Get aggregate analytics across all batches
+router.get('/analytics', (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    const start = startDate ? new Date(startDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const end = endDate ? new Date(endDate) : new Date();
+
+    const aggregateMetrics = {
+      total_messages: 0,
+      completed: 0,
+      failed: 0,
+      success_rate: 0,
+      credits_used: 0,
+      error_categories: {},
+      error_samples: []
+    };
+
+    batches.forEach(batch => {
+      const batchDate = new Date(batch.timing.created);
+      if (batchDate >= start && batchDate <= end) {
+        aggregateMetrics.total_messages += batch.progress.total;
+        aggregateMetrics.completed += batch.progress.completed;
+        aggregateMetrics.failed += batch.progress.failed;
+        aggregateMetrics.credits_used += batch.metrics.credits_used;
+
+        // Aggregate error categories
+        Object.entries(batch.errors.categories).forEach(([category, count]) => {
+          aggregateMetrics.error_categories[category] = (aggregateMetrics.error_categories[category] || 0) + count;
+        });
+
+        // Collect error samples
+        if (batch.errors.samples.length > 0) {
+          aggregateMetrics.error_samples.push(...batch.errors.samples);
+        }
+      }
+    });
+
+    // Calculate success rate
+    if (aggregateMetrics.total_messages > 0) {
+      aggregateMetrics.success_rate = (aggregateMetrics.completed / aggregateMetrics.total_messages) * 100;
+    }
+
+    // Keep only the most recent error samples
+    aggregateMetrics.error_samples = aggregateMetrics.error_samples
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      .slice(0, 10);
+
+    res.json({
+      success: true,
+      data: aggregateMetrics
+    });
+  } catch (error) {
+    console.error('Error getting aggregate analytics:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get aggregate analytics',
+      message: error.message
+    });
+  }
+});
+
+// Get trend data
+router.get('/trends', (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    const start = startDate ? new Date(startDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const end = endDate ? new Date(endDate) : new Date();
+
+    // Group batches by hour
+    const hourlyData = new Map();
+    
+    batches.forEach(batch => {
+      const batchDate = new Date(batch.timing.created);
+      if (batchDate >= start && batchDate <= end) {
+        const hourKey = batchDate.toISOString().slice(0, 13); // YYYY-MM-DDTHH
+        
+        if (!hourlyData.has(hourKey)) {
+          hourlyData.set(hourKey, {
+            timestamp: hourKey + ':00:00Z',
+            message_volume: 0,
+            success_rate: 0,
+            error_rate: 0,
+            response_time: 0,
+            total_batches: 0
+          });
+        }
+        
+        const hourData = hourlyData.get(hourKey);
+        hourData.message_volume += batch.progress.total;
+        hourData.success_rate += (batch.progress.completed / batch.progress.total) * 100;
+        hourData.error_rate += (batch.progress.failed / batch.progress.total) * 100;
+        hourData.total_batches++;
+      }
+    });
+
+    // Average the rates
+    const trends = Array.from(hourlyData.values()).map(hour => ({
+      ...hour,
+      success_rate: hour.success_rate / hour.total_batches,
+      error_rate: hour.error_rate / hour.total_batches
+    }));
+
+    res.json({
+      success: true,
+      data: trends
+    });
+  } catch (error) {
+    console.error('Error getting trend data:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get trend data',
+      message: error.message
+    });
+  }
+});
+
+// Get system metrics
+router.get('/system/metrics', (req, res) => {
+  try {
+    const metrics = {
+      activeConnections: batches.size,
+      queueSize: Array.from(batches.values()).reduce((sum, batch) => 
+        sum + (batch.status === 'pending' ? batch.progress.pending : 0), 0),
+      avgResponseTime: Array.from(batches.values()).reduce((sum, batch) => 
+        sum + (batch.metrics.messages_per_second > 0 ? 1000 / batch.metrics.messages_per_second : 0), 0) / batches.size || 0,
+      cpuUsage: process.cpuUsage().user / 1000000, // Convert to seconds
+      memoryUsage: process.memoryUsage().heapUsed / 1024 / 1024 // Convert to MB
+    };
+
+    res.json({
+      success: true,
+      data: metrics
+    });
+  } catch (error) {
+    console.error('Error getting system metrics:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get system metrics',
+      message: error.message
+    });
+  }
+});
+
 // Get request history and active batches
 router.get('/history', (req, res) => {
   try {
@@ -253,6 +396,149 @@ router.get('/:batchId/results', (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to get batch results',
+      message: error.message
+    });
+  }
+});
+
+// Get aggregate analytics across all batches
+router.get('/analytics', (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    const start = startDate ? new Date(startDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const end = endDate ? new Date(endDate) : new Date();
+
+    const aggregateMetrics = {
+      total_messages: 0,
+      completed: 0,
+      failed: 0,
+      success_rate: 0,
+      credits_used: 0,
+      error_categories: {},
+      error_samples: []
+    };
+
+    batches.forEach(batch => {
+      const batchDate = new Date(batch.timing.created);
+      if (batchDate >= start && batchDate <= end) {
+        aggregateMetrics.total_messages += batch.progress.total;
+        aggregateMetrics.completed += batch.progress.completed;
+        aggregateMetrics.failed += batch.progress.failed;
+        aggregateMetrics.credits_used += batch.metrics.credits_used;
+
+        // Aggregate error categories
+        Object.entries(batch.errors.categories).forEach(([category, count]) => {
+          aggregateMetrics.error_categories[category] = (aggregateMetrics.error_categories[category] || 0) + count;
+        });
+
+        // Collect error samples
+        if (batch.errors.samples.length > 0) {
+          aggregateMetrics.error_samples.push(...batch.errors.samples);
+        }
+      }
+    });
+
+    // Calculate success rate
+    if (aggregateMetrics.total_messages > 0) {
+      aggregateMetrics.success_rate = (aggregateMetrics.completed / aggregateMetrics.total_messages) * 100;
+    }
+
+    // Keep only the most recent error samples
+    aggregateMetrics.error_samples = aggregateMetrics.error_samples
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      .slice(0, 10);
+
+    res.json({
+      success: true,
+      data: aggregateMetrics
+    });
+  } catch (error) {
+    console.error('Error getting aggregate analytics:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get aggregate analytics',
+      message: error.message
+    });
+  }
+});
+
+// Get trend data
+router.get('/trends', (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    const start = startDate ? new Date(startDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const end = endDate ? new Date(endDate) : new Date();
+
+    // Group batches by hour
+    const hourlyData = new Map();
+    
+    batches.forEach(batch => {
+      const batchDate = new Date(batch.timing.created);
+      if (batchDate >= start && batchDate <= end) {
+        const hourKey = batchDate.toISOString().slice(0, 13); // YYYY-MM-DDTHH
+        
+        if (!hourlyData.has(hourKey)) {
+          hourlyData.set(hourKey, {
+            timestamp: hourKey + ':00:00Z',
+            message_volume: 0,
+            success_rate: 0,
+            error_rate: 0,
+            response_time: 0,
+            total_batches: 0
+          });
+        }
+        
+        const hourData = hourlyData.get(hourKey);
+        hourData.message_volume += batch.progress.total;
+        hourData.success_rate += (batch.progress.completed / batch.progress.total) * 100;
+        hourData.error_rate += (batch.progress.failed / batch.progress.total) * 100;
+        hourData.total_batches++;
+      }
+    });
+
+    // Average the rates
+    const trends = Array.from(hourlyData.values()).map(hour => ({
+      ...hour,
+      success_rate: hour.success_rate / hour.total_batches,
+      error_rate: hour.error_rate / hour.total_batches
+    }));
+
+    res.json({
+      success: true,
+      data: trends
+    });
+  } catch (error) {
+    console.error('Error getting trend data:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get trend data',
+      message: error.message
+    });
+  }
+});
+
+// Get system metrics
+router.get('/system/metrics', (req, res) => {
+  try {
+    const metrics = {
+      activeConnections: batches.size,
+      queueSize: Array.from(batches.values()).reduce((sum, batch) => 
+        sum + (batch.status === 'pending' ? batch.progress.pending : 0), 0),
+      avgResponseTime: Array.from(batches.values()).reduce((sum, batch) => 
+        sum + (batch.metrics.messages_per_second > 0 ? 1000 / batch.metrics.messages_per_second : 0), 0) / batches.size || 0,
+      cpuUsage: process.cpuUsage().user / 1000000, // Convert to seconds
+      memoryUsage: process.memoryUsage().heapUsed / 1024 / 1024 // Convert to MB
+    };
+
+    res.json({
+      success: true,
+      data: metrics
+    });
+  } catch (error) {
+    console.error('Error getting system metrics:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get system metrics',
       message: error.message
     });
   }

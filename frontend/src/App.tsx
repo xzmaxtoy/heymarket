@@ -5,6 +5,7 @@ import { store } from './store';
 import CustomerSelection from './features/customers/CustomerSelection';
 import TemplateList from './features/templates/TemplateList';
 import BatchList from './features/batches/BatchList';
+import AnalyticsDashboard from './features/analytics/components/AnalyticsDashboard';
 import { initializeWebSocket, closeWebSocket } from './services/websocket';
 
 interface TabPanelProps {
@@ -58,6 +59,7 @@ const App: React.FC = () => {
             <Tab label="Customers" />
             <Tab label="Templates" />
             <Tab label="Batches" />
+            <Tab label="Analytics" />
           </Tabs>
 
           <Box sx={{ flex: 1, minHeight: 0 }}>
@@ -71,6 +73,10 @@ const App: React.FC = () => {
 
             <TabPanel value={currentTab} index={2}>
               <BatchList />
+            </TabPanel>
+
+            <TabPanel value={currentTab} index={3}>
+              <AnalyticsDashboard />
             </TabPanel>
           </Box>
         </Box>
