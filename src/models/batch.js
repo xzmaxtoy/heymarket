@@ -6,6 +6,7 @@ import { Template, getTemplate } from './template.js';
 import { isDuplicateMessage, recordMessage } from '../utils/messageHistory.js';
 import { employeeList } from '../utils/employeeList.js';
 import { emitBatchUpdate, emitBatchError, emitBatchComplete } from '../websocket/server.js';
+import { supabase } from '../services/supabase.js';
 
 const sleep = promisify(setTimeout);
 
@@ -85,7 +86,8 @@ class Batch {
     const estimatedCompletion = new Date(Date.now() + totalTime);
     this.timing.estimated_completion = estimatedCompletion.toISOString();
 
-    // Emit initial processing state
+    // Update Supabase and emit state
+    await this.updateSupabase();
     emitBatchUpdate(this.id, this.getState());
 
     const startTime = Date.now();
@@ -294,7 +296,8 @@ class Batch {
       this.metrics.messages_per_second = (this.progress.completed + this.progress.failed) / elapsedSeconds;
       this.metrics.success_rate = (successCount / (this.progress.completed + this.progress.failed)) * 100;
 
-      // Emit progress update
+      // Update Supabase and emit progress
+      await this.updateSupabase();
       emitBatchUpdate(this.id, this.getState());
 
       // Respect priority-based rate limiting
@@ -302,6 +305,7 @@ class Batch {
     }
 
     this.status = 'completed';
+    await this.updateSupabase(new Date().toISOString());
     emitBatchComplete(this.id, this.getState());
   }
 
@@ -324,7 +328,9 @@ class Batch {
       throw new Error('Can only pause processing batches');
     }
     this.isPaused = true;
-    // Status update will be handled in start() method
+    this.status = 'paused';
+    await this.updateSupabase();
+    emitBatchUpdate(this.id, this.getState());
   }
 
   /**
@@ -336,6 +342,7 @@ class Batch {
     }
     this.isPaused = false;
     this.status = 'processing';
+    await this.updateSupabase();
     emitBatchUpdate(this.id, this.getState());
     await this.start(this.lastAuth);
   }
@@ -372,6 +379,8 @@ class Batch {
       samples: []
     };
 
+    // Update Supabase and emit state
+    await this.updateSupabase();
     emitBatchUpdate(this.id, this.getState());
     await this.start(this.lastAuth);
   }
@@ -379,6 +388,27 @@ class Batch {
   /**
    * Get current batch state
    */
+  /**
+   * Update batch status in Supabase
+   */
+  async updateSupabase(completedAt = null) {
+    try {
+      await supabase
+        .from('sms_batches')
+        .update({
+          status: this.status,
+          completed_count: this.progress.completed,
+          failed_count: this.progress.failed,
+          completed_at: completedAt,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', this.id);
+    } catch (error) {
+      console.error('Error updating batch in Supabase:', error);
+      // Don't throw error to prevent disrupting the batch process
+    }
+  }
+
   getState() {
     return {
       batchId: this.id,
@@ -451,7 +481,7 @@ async function createBatch(templateData, recipients, options, auth) {
 
   // Only start processing if autoStart is true
   if (options.autoStart) {
-    batch.start(auth).catch(error => {
+    batch.start(auth).catch(async error => {
       console.error('Batch processing error:', error);
       batch.status = 'failed';
       batch.errors.categories['system'] = (batch.errors.categories['system'] || 0) + 1;
@@ -460,6 +490,7 @@ async function createBatch(templateData, recipients, options, auth) {
         category: 'system',
         timestamp: new Date().toISOString()
       });
+      await batch.updateSupabase();
       emitBatchError(batch.id, {
         error: error.message,
         state: batch.getState()
