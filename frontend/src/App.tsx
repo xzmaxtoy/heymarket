@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Box, Container, CssBaseline, Tab, Tabs } from '@mui/material';
 import { Provider } from 'react-redux';
 import { store } from './store';
+import Notifications from './components/Notifications';
 import CustomerSelection from './features/customers/CustomerSelection';
 import TemplateList from './features/templates/TemplateList';
 import BatchList from './features/batches/BatchList';
@@ -49,7 +50,9 @@ const App: React.FC = () => {
   return (
     <Provider store={store}>
       <CssBaseline />
-      <Container maxWidth={false} sx={{ height: '100vh', py: 2 }}>
+      <>
+        <Notifications />
+        <Container maxWidth={false} sx={{ height: '100vh', py: 2 }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
           <Tabs
             value={currentTab}
@@ -80,7 +83,8 @@ const App: React.FC = () => {
             </TabPanel>
           </Box>
         </Box>
-      </Container>
+        </Container>
+      </>
     </Provider>
   );
 };

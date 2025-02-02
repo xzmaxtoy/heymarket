@@ -3,6 +3,7 @@ import customersReducer from './slices/customersSlice';
 import templatesReducer from './slices/templatesSlice';
 import batchesReducer from './slices/batchesSlice';
 import analyticsReducer from './slices/analyticsSlice';
+import notificationsReducer from './slices/notificationsSlice';
 
 export const store = configureStore({
   reducer: {
@@ -10,6 +11,7 @@ export const store = configureStore({
     templates: templatesReducer,
     batches: batchesReducer,
     analytics: analyticsReducer,
+    notifications: notificationsReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
