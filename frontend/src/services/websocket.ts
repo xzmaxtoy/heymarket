@@ -7,8 +7,8 @@ let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY = 2000; // 2 seconds
 
-// Track subscribed batches to prevent duplicate subscriptions
-const subscribedBatches = new Set<string>();
+// Track subscribed batches and their callbacks
+const subscriptionCallbacks = new Map<string, (data: any) => void>();
 
 export function initializeWebSocket() {
   if (socket) return;
@@ -28,7 +28,7 @@ export function initializeWebSocket() {
   socket.on('disconnect', () => {
     console.log('WebSocket disconnected');
     // Clear subscriptions on disconnect
-    subscribedBatches.clear();
+    subscriptionCallbacks.clear();
   });
 
   socket.on('connect_error', (error) => {
@@ -38,14 +38,21 @@ export function initializeWebSocket() {
     if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
       console.error('Max reconnection attempts reached');
       socket?.close();
-      subscribedBatches.clear();
+      subscriptionCallbacks.clear();
     }
   });
 
   // Batch event handlers
   socket.on('batch:state', ({ batchId, state }) => {
-    if (subscribedBatches.has(batchId)) {
-      console.log(`Received state update for batch ${batchId}:`, state);
+    const callback = subscriptionCallbacks.get(batchId);
+    if (callback) {
+      callback({
+        type: 'log',
+        logType: 'info',
+        message: `Batch state updated: ${state.status}`,
+        details: state
+      });
+
       store.dispatch(updateBatch({ 
         id: batchId, 
         changes: {
@@ -57,8 +64,15 @@ export function initializeWebSocket() {
   });
 
   socket.on('batch:error', ({ batchId, error }) => {
-    if (subscribedBatches.has(batchId)) {
-      console.error(`Batch ${batchId} error:`, error);
+    const callback = subscriptionCallbacks.get(batchId);
+    if (callback) {
+      callback({
+        type: 'log',
+        logType: 'error',
+        message: error.message,
+        details: error
+      });
+
       store.dispatch(updateBatch({
         id: batchId,
         changes: {
@@ -75,8 +89,15 @@ export function initializeWebSocket() {
   });
 
   socket.on('batch:complete', ({ batchId, state }) => {
-    if (subscribedBatches.has(batchId)) {
-      console.log(`Batch ${batchId} completed`);
+    const callback = subscriptionCallbacks.get(batchId);
+    if (callback) {
+      callback({
+        type: 'log',
+        logType: 'success',
+        message: 'Batch completed successfully',
+        details: state
+      });
+
       store.dispatch(updateBatch({
         id: batchId,
         changes: {
@@ -85,29 +106,43 @@ export function initializeWebSocket() {
           updated_at: new Date().toISOString()
         }
       }));
+
       // Automatically unsubscribe from completed batches
       unsubscribeFromBatch(batchId);
     }
   });
+
+  // Log event handlers
+  socket.on('batch:log', ({ batchId, log }) => {
+    const callback = subscriptionCallbacks.get(batchId);
+    if (callback) {
+      callback({
+        type: 'log',
+        logType: log.level || 'info',
+        message: log.message,
+        details: log.details
+      });
+    }
+  });
 }
 
-export function subscribeToBatch(batchId: string) {
+export function subscribeToBatch(batchId: string, callback: (data: any) => void) {
   if (!socket?.connected) {
     console.warn('WebSocket not connected');
     return;
   }
-  if (!subscribedBatches.has(batchId)) {
+  if (!subscriptionCallbacks.has(batchId)) {
     socket.emit('subscribe:batch', batchId);
-    subscribedBatches.add(batchId);
+    subscriptionCallbacks.set(batchId, callback);
     console.log(`Subscribed to batch ${batchId}`);
   }
 }
 
 export function unsubscribeFromBatch(batchId: string) {
   if (!socket?.connected) return;
-  if (subscribedBatches.has(batchId)) {
+  if (subscriptionCallbacks.has(batchId)) {
     socket.emit('unsubscribe:batch', batchId);
-    subscribedBatches.delete(batchId);
+    subscriptionCallbacks.delete(batchId);
     console.log(`Unsubscribed from batch ${batchId}`);
   }
 }
@@ -149,6 +184,6 @@ export function closeWebSocket() {
   if (socket) {
     socket.close();
     socket = null;
-    subscribedBatches.clear();
+    subscriptionCallbacks.clear();
   }
 }
