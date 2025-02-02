@@ -669,6 +669,8 @@ router.post('/:batchId/resume', async (req, res) => {
     // If not in memory, check database
     if (!batch) {
       try {
+        console.log('Fetching batch data from Supabase:', batchId);
+
         // Fetch batch data and logs
         const [batchResponse, logsResponse] = await Promise.all([
           supabase
@@ -677,7 +679,10 @@ router.post('/:batchId/resume', async (req, res) => {
               *,
               template:template_id (
                 id,
-                content
+                content,
+                attachments,
+                is_private,
+                author
               )
             `)
             .eq('id', batchId)
@@ -688,6 +693,16 @@ router.post('/:batchId/resume', async (req, res) => {
             .eq('batch_id', batchId)
         ]);
 
+        console.log('Batch data response:', {
+          hasError: !!batchResponse.error,
+          data: batchResponse.data ? {
+            id: batchResponse.data.id,
+            status: batchResponse.data.status,
+            hasTemplate: !!batchResponse.data.template,
+            templateId: batchResponse.data.template_id
+          } : null
+        });
+
         if (batchResponse.error || !batchResponse.data) {
           return res.status(404).json({
             success: false,
@@ -695,6 +710,11 @@ router.post('/:batchId/resume', async (req, res) => {
             message: 'Invalid batch ID'
           });
         }
+
+        console.log('Batch logs response:', {
+          hasError: !!logsResponse.error,
+          recipientCount: logsResponse.data?.length
+        });
 
         if (logsResponse.error) {
           throw logsResponse.error;
@@ -716,11 +736,22 @@ router.post('/:batchId/resume', async (req, res) => {
           variables: log.variables || {}
         }));
 
+        console.log('Creating new batch instance:', {
+          templateId: batchData.template_id,
+          hasTemplateContent: !!batchData.template?.content,
+          recipientCount: recipients.length,
+          priority: batchData.priority || 'normal',
+          hasScheduledTime: !!batchData.scheduled_for
+        });
+
         // Create new batch instance
         batch = await createBatch(
           { 
             id: batchData.template_id,
-            text: batchData.template?.content
+            text: batchData.template?.content,
+            attachments: batchData.template?.attachments,
+            isPrivate: batchData.template?.is_private,
+            author: batchData.template?.author
           },
           recipients,
           { 

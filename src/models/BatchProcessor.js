@@ -114,6 +114,16 @@ class BatchProcessor {
    * @private
    */
   static async sendMessage(message, auth) {
+    console.log('Sending message:', {
+      phoneNumber: message.phoneNumber,
+      messageLength: message.message?.length,
+      hasAttachments: !!message.attachments?.length,
+      auth: {
+        hasApiKey: !!auth.apiKey,
+        headers: Object.keys(auth.headers || {})
+      }
+    });
+
     const messageConfig = {
       ...addHeymarketAuth(auth),
       url: `${config.heymarketBaseUrl}/message/send`,
@@ -132,7 +142,32 @@ class BatchProcessor {
       timeout: 10000
     };
 
-    return axios(messageConfig);
+    try {
+      console.log('Message config:', {
+        url: messageConfig.url,
+        method: messageConfig.method,
+        data: {
+          ...messageConfig.data,
+          text: messageConfig.data.text?.substring(0, 50) + '...' // Truncate for logging
+        }
+      });
+
+      const response = await axios(messageConfig);
+      
+      console.log('Message sent successfully:', {
+        messageId: response.data.message?.id || response.data.id,
+        timestamp: response.data.message?.created_at || response.data.created_at
+      });
+
+      return response;
+    } catch (error) {
+      console.error('Error sending message:', {
+        error: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      throw error;
+    }
   }
 
   /**

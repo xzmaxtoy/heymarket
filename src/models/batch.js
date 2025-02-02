@@ -1,5 +1,6 @@
 import { promisify } from 'util';
-import { Template, getTemplate } from './template.js';
+import { Template } from './template.js';
+import { getTemplateById } from '../services/supabase.js';
 import BatchProcessor from './BatchProcessor.js';
 import BatchState from './BatchState.js';
 
@@ -39,11 +40,29 @@ class Batch {
     this.lastAuth = auth;
 
     try {
+      console.log('Starting batch processing:', {
+        batchId: this.id,
+        recipientCount: this.recipients.length,
+        template: {
+          id: this.template.id,
+          hasText: !!this.template.text,
+          variableCount: this.template.variables?.length
+        },
+        auth: {
+          hasApiKey: !!auth.apiKey,
+          headers: Object.keys(auth.headers || {})
+        }
+      });
+
       // Handle scheduled batches
       if (this.options.scheduleTime) {
         const scheduledTime = new Date(this.options.scheduleTime);
         const now = new Date();
         if (scheduledTime > now) {
+          console.log('Batch is scheduled for future:', {
+            scheduledTime,
+            delay: scheduledTime - now
+          });
           const delay = scheduledTime - now;
           await sleep(delay);
         }
@@ -55,11 +74,19 @@ class Batch {
       // Process each recipient
       for (let i = this.currentRecipientIndex; i < this.recipients.length; i++) {
         if (this.isPaused) {
+          console.log('Batch processing paused at index:', i);
           this.currentRecipientIndex = i;
           return;
         }
 
         const recipient = this.recipients[i];
+        console.log('Processing recipient:', {
+          index: i,
+          phoneNumber: recipient.phoneNumber,
+          hasVariables: !!recipient.variables,
+          hasOverrides: !!recipient.overrides
+        });
+
         this.state.startProcessingMessage();
 
         // Process message
@@ -73,17 +100,37 @@ class Batch {
           }
         );
 
+        console.log('Message processing result:', {
+          status: result.status,
+          attempts: result.attempts,
+          errorCategory: result.errorCategory,
+          timestamp: result.timestamp
+        });
+
         // Record result and update metrics
         await this.state.recordResult(result);
         this.state.updateMetrics(startTime);
 
         // Respect rate limits
-        await sleep(BatchProcessor.getProcessingDelay(this.options.priority));
+        const delay = BatchProcessor.getProcessingDelay(this.options.priority);
+        console.log('Applying rate limit delay:', {
+          priority: this.options.priority,
+          delay
+        });
+        await sleep(delay);
       }
 
+      console.log('Batch processing completed:', {
+        batchId: this.id,
+        duration: Date.now() - startTime
+      });
       await this.state.complete();
     } catch (error) {
-      console.error('Batch processing error:', error);
+      console.error('Batch processing error:', {
+        batchId: this.id,
+        error: error.message,
+        stack: error.stack
+      });
       await this.state.fail(error);
     }
   }
@@ -141,7 +188,7 @@ async function createBatch(templateData, recipients, options, auth) {
     if (templateData.id) {
       // If template has ID, fetch from storage
       console.log('Fetching template with ID:', templateData.id);
-      template = await getTemplate(templateData.id);
+      template = await getTemplateById(templateData.id);
       if (!template) {
         throw new Error('Template not found');
       }
