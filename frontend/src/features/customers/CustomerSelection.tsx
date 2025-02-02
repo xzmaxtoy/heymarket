@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Box, Paper, Button } from '@mui/material';
 import { Send as SendIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/store';
+import { supabase } from '@/services/supabase';
 import {
   selectSelectedCustomers,
   selectActiveFilters,
@@ -150,9 +151,28 @@ export const CustomerSelection: React.FC = () => {
     }));
   };
 
-  const selectedCustomersList = customers.filter(c => 
-    selectedCustomers.includes(c.id)
-  );
+  // Fetch full customer data for selected IDs
+  const [fullCustomerData, setFullCustomerData] = React.useState<Customer[]>([]);
+
+  useEffect(() => {
+    const fetchSelectedCustomers = async () => {
+      if (batchDialogOpen && selectedCustomers.length > 0) {
+        try {
+          const { data, error } = await supabase
+            .from('customer')
+            .select('*')
+            .in('id', selectedCustomers);
+
+          if (error) throw error;
+          setFullCustomerData(data || []);
+        } catch (error) {
+          console.error('Error fetching selected customers:', error);
+        }
+      }
+    };
+
+    fetchSelectedCustomers();
+  }, [batchDialogOpen, selectedCustomers]);
 
   return (
     <Box sx={{ width: '100%', height: '100%' }}>
@@ -209,8 +229,11 @@ export const CustomerSelection: React.FC = () => {
 
       <BatchCreationDialog
         open={batchDialogOpen}
-        onClose={() => setBatchDialogOpen(false)}
-        selectedCustomers={selectedCustomersList}
+        onClose={() => {
+          setBatchDialogOpen(false);
+          setFullCustomerData([]);
+        }}
+        selectedCustomers={fullCustomerData}
       />
     </Box>
   );
