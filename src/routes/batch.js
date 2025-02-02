@@ -1,6 +1,7 @@
 import express from 'express';
 import { createBatch, getBatch, batches } from '../models/batch.js';
 import { requestLogger, getRequestHistory } from '../middleware/requestLogger.js';
+import { createBatchRecord, createBatchLogs } from '../services/supabase.js';
 
 const router = express.Router();
 
@@ -147,6 +148,55 @@ router.get('/system/metrics', (req, res) => {
   }
 });
 
+// List batches with pagination and sorting
+router.get('/', async (req, res) => {
+  try {
+    const { page = 1, pageSize = 10, sortBy = 'created_at', sortOrder = 'desc' } = req.query;
+
+    // Get all active batches from memory
+    const activeBatches = Array.from(batches.values()).map(batch => ({
+      id: batch.id,
+      status: batch.status,
+      created: batch.timing.created,
+      template: {
+        id: batch.template.id,
+        text: batch.template.text
+      },
+      progress: batch.progress,
+      metrics: batch.metrics
+    }));
+
+    // Apply sorting
+    activeBatches.sort((a, b) => {
+      const aValue = sortBy === 'created_at' ? a.created : a[sortBy];
+      const bValue = sortBy === 'created_at' ? b.created : b[sortBy];
+      return sortOrder === 'desc' ? 
+        (bValue > aValue ? 1 : -1) : 
+        (aValue > bValue ? 1 : -1);
+    });
+
+    // Apply pagination
+    const start = (parseInt(page) - 1) * parseInt(pageSize);
+    const end = start + parseInt(pageSize);
+    const paginatedBatches = activeBatches.slice(start, end);
+
+    res.json({
+      success: true,
+      data: {
+        batches: paginatedBatches,
+        total: activeBatches.length
+      }
+    });
+  } catch (error) {
+    console.error('Error listing batches:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to list batches',
+      message: error.message
+    });
+  }
+});
+
 // Get request history and active batches
 router.get('/history', (req, res) => {
   try {
@@ -192,7 +242,7 @@ router.get('/history', (req, res) => {
 // Create batch
 router.post('/', async (req, res) => {
   try {
-    const { text, recipients, batchId, options = {} } = req.body;
+    const { name, template, recipients, options = {} } = req.body;
 
     // Validate request
     if (!Array.isArray(recipients) || recipients.length === 0) {
@@ -203,25 +253,23 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Validate text
-    if (!text) {
+    // Validate template
+    if (!template?.text && !template?.id) {
       return res.status(400).json({
         success: false,
         error: 'Invalid request',
-        message: 'Message text is required'
+        message: 'Template text or ID is required'
       });
     }
 
-    // Validate and format each recipient's phone number
+    // Format recipients
     const formattedRecipients = recipients.map(recipient => {
       if (!recipient.phoneNumber || !recipient.variables) {
         throw new Error('Each recipient must have phoneNumber and variables');
       }
 
-      // Format phone number by removing non-digits
+      // Format phone number
       let phone = recipient.phoneNumber.replace(/\D/g, '');
-
-      // Validate phone number format
       if (phone.length === 10) {
         phone = '1' + phone;
       } else if (phone.length === 11 && !phone.startsWith('1')) {
@@ -236,62 +284,36 @@ router.post('/', async (req, res) => {
       };
     });
 
-    // Check for duplicate batch ID
-    if (batchId) {
-      try {
-        const existingBatch = getBatch(batchId);
-        if (existingBatch) {
-          return res.status(409).json({
-            success: false,
-            error: 'Duplicate batch ID',
-            message: 'A batch with this ID already exists'
-          });
-        }
-      } catch (error) {
-        // Ignore error if batch not found
-      }
-    }
+    // Create batch records in Supabase
+    const batchData = {
+      name,
+      template,
+      recipients: formattedRecipients,
+      options
+    };
 
-    // Log detailed request information
-    console.log('Batch Request:', {
-      timestamp: new Date().toISOString(),
-      requestId: req.headers['x-request-id'] || 'no-request-id',
-      auth: {
-        hasApiKey: !!req.apiKey,
-        keyPrefix: req.apiKey ? req.apiKey.substring(0, 8) + '...' : 'none'
-      },
-      text: text,
-      recipients: {
-        count: recipients.length,
-        sample: recipients.slice(0, 2).map(r => ({
-          phoneNumber: r.phoneNumber,
-          variableCount: Object.keys(r.variables || {}).length
-        }))
-      },
-      options: {
-        ...options,
-        priority: options.priority || 'normal',
-        hasSchedule: !!options.scheduleTime
-      }
-    });
+    const batchRecord = await createBatchRecord(batchData);
+    await createBatchLogs(batchRecord.id, batchData);
 
-    // Create and start batch
-    const batch = await createBatch({ text }, formattedRecipients, { ...options, batchId }, req);
-    
-    // Log batch creation result
+    // Create and start batch processing
+    const batch = await createBatch(
+      template,
+      formattedRecipients,
+      { ...options, batchId: batchRecord.id },
+      req
+    );
+
+    // Log batch creation
     console.log('Batch Created:', {
-      timestamp: new Date().toISOString(),
-      batchId: batch.id,
-      state: batch.getState(),
-      timing: {
-        created: batch.timing.created,
-        estimatedCompletion: batch.timing.estimated_completion
+      id: batch.id,
+      template: {
+        id: template.id,
+        text: template.text
       },
-      progress: batch.progress,
-      metrics: batch.metrics
+      recipientCount: formattedRecipients.length,
+      options
     });
 
-    // Return initial status
     res.status(201).json({
       success: true,
       data: batch.getState()
