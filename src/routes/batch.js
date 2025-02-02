@@ -148,43 +148,55 @@ router.get('/system/metrics', (req, res) => {
   }
 });
 
+import { supabase } from '../services/supabase.js';
+
 // List batches with pagination and sorting
 router.get('/', async (req, res) => {
   try {
     const { page = 1, pageSize = 10, sortBy = 'created_at', sortOrder = 'desc' } = req.query;
 
-    // Get all active batches from memory
-    const activeBatches = Array.from(batches.values()).map(batch => ({
+    // Calculate pagination range
+    const from = (parseInt(page) - 1) * parseInt(pageSize);
+    const to = from + parseInt(pageSize) - 1;
+
+    // Fetch batches from Supabase
+    let query = supabase
+      .from('sms_batches')
+      .select('*', { count: 'exact' })
+      .order(sortBy, { ascending: sortOrder === 'asc' })
+      .range(from, to);
+
+    const { data: batches, error, count } = await query;
+
+    if (error) throw error;
+
+    // Map batches to include template and progress info
+    const mappedBatches = batches.map(batch => ({
       id: batch.id,
+      name: batch.name,
       status: batch.status,
-      created: batch.timing.created,
+      created_at: batch.created_at,
       template: {
-        id: batch.template.id,
-        text: batch.template.text
+        id: batch.template_id,
       },
-      progress: batch.progress,
-      metrics: batch.metrics
+      progress: {
+        total: batch.total_recipients,
+        completed: batch.completed_count,
+        failed: batch.failed_count,
+        pending: batch.total_recipients - (batch.completed_count + batch.failed_count)
+      }
     }));
 
-    // Apply sorting
-    activeBatches.sort((a, b) => {
-      const aValue = sortBy === 'created_at' ? a.created : a[sortBy];
-      const bValue = sortBy === 'created_at' ? b.created : b[sortBy];
-      return sortOrder === 'desc' ? 
-        (bValue > aValue ? 1 : -1) : 
-        (aValue > bValue ? 1 : -1);
-    });
-
-    // Apply pagination
-    const start = (parseInt(page) - 1) * parseInt(pageSize);
-    const end = start + parseInt(pageSize);
-    const paginatedBatches = activeBatches.slice(start, end);
-
-    res.json({
+    // Set cache control headers
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    }).json({
       success: true,
       data: {
-        batches: paginatedBatches,
-        total: activeBatches.length
+        batches: mappedBatches,
+        total: count || 0
       }
     });
   } catch (error) {

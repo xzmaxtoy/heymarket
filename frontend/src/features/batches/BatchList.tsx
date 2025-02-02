@@ -92,15 +92,21 @@ export const BatchList: React.FC = () => {
       field: 'scheduled_for',
       headerName: 'Scheduled',
       width: 170,
-      valueFormatter: (params) => 
-        params.value ? new Date(params.value).toLocaleString() : '-',
+      valueFormatter: (params) => {
+        if (!params.value) return '-';
+        const date = new Date(params.value);
+        return isNaN(date.getTime()) ? '-' : date.toLocaleString();
+      },
     },
     {
       field: 'created_at',
       headerName: 'Created',
       width: 170,
-      valueFormatter: (params) => 
-        new Date(params.value).toLocaleString(),
+      valueFormatter: (params) => {
+        if (!params.value) return '-';
+        const date = new Date(params.value);
+        return isNaN(date.getTime()) ? '-' : date.toLocaleString();
+      },
     },
     {
       field: 'actions',
