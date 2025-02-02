@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
-import { Grid, Container, Alert, CircularProgress, Box } from '@mui/material';
+import { Grid, Container, Alert, CircularProgress, Box, Snackbar, Button, AlertTitle, Paper } from '@mui/material';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import { useAppDispatch, useAppSelector } from '../../../store/hooks';
 import { BatchAnalytics } from '../types';
 import {
@@ -18,6 +19,14 @@ import SystemMetrics from './SystemMetrics';
 
 const AnalyticsDashboard: React.FC = () => {
   const dispatch = useAppDispatch();
+  const [exportError, setExportError] = React.useState<string | null>(null);
+  const [retryCount, setRetryCount] = React.useState(0);
+  const [sectionErrors, setSectionErrors] = React.useState<{
+    metrics?: string;
+    trends?: string;
+    system?: string;
+  }>({});
+
   const {
     batchAnalytics,
     systemMetrics,
@@ -26,10 +35,35 @@ const AnalyticsDashboard: React.FC = () => {
     error
   } = useAppSelector((state) => state.analytics);
 
+  const fetchData = React.useCallback(() => {
+    setSectionErrors({});
+    Promise.all([
+      dispatch(fetchBatchesAnalytics(filters)).unwrap().catch(err => {
+        setSectionErrors(prev => ({ ...prev, metrics: err.message }));
+      }),
+      dispatch(fetchTrendMetrics(filters)).unwrap().catch(err => {
+        setSectionErrors(prev => ({ ...prev, trends: err.message }));
+      }),
+      dispatch(fetchSystemMetrics()).unwrap().catch(err => {
+        setSectionErrors(prev => ({ ...prev, system: err.message }));
+      })
+    ]);
+  }, [dispatch, filters]);
+
+  // Retry mechanism with exponential backoff
+  useEffect(() => {
+    if (error && retryCount < 3) {
+      const timer = setTimeout(() => {
+        setRetryCount(prev => prev + 1);
+        fetchData();
+      }, Math.pow(2, retryCount) * 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [error, retryCount, fetchData]);
+
   useEffect(() => {
     // Initial data fetch
-    dispatch(fetchBatchesAnalytics(filters));
-    dispatch(fetchTrendMetrics(filters));
+    fetchData();
     
     // Start system metrics polling
     dispatch(startMetricsPolling());
@@ -38,7 +72,7 @@ const AnalyticsDashboard: React.FC = () => {
     return () => {
       dispatch(stopMetricsPolling());
     };
-  }, [dispatch]);
+  }, [dispatch, fetchData]);
 
   // Calculate aggregate metrics
   const aggregateMetrics = React.useMemo(() => {
@@ -86,14 +120,54 @@ const AnalyticsDashboard: React.FC = () => {
     dispatch(fetchSystemMetrics());
   };
 
-  const handleExport = () => {
-    dispatch(downloadAnalyticsReport(filters));
+  const handleExport = async () => {
+    try {
+      await dispatch(downloadAnalyticsReport(filters)).unwrap();
+    } catch (err) {
+      setExportError('Failed to export analytics data');
+    }
   };
 
-  if (error) {
+  const handleCloseExportError = () => {
+    setExportError(null);
+  };
+
+  const handleRetrySection = (section: keyof typeof sectionErrors) => {
+    setSectionErrors(prev => ({ ...prev, [section]: undefined }));
+    switch (section) {
+      case 'metrics':
+        dispatch(fetchBatchesAnalytics(filters));
+        break;
+      case 'trends':
+        dispatch(fetchTrendMetrics(filters));
+        break;
+      case 'system':
+        dispatch(fetchSystemMetrics());
+        break;
+    }
+  };
+
+  if (error && retryCount >= 3) {
     return (
       <Container>
-        <Alert severity="error" sx={{ mt: 2 }}>
+        <Alert 
+          severity="error" 
+          sx={{ mt: 2 }}
+          action={
+            <Button 
+              color="inherit" 
+              size="small" 
+              startIcon={<RefreshIcon />}
+              onClick={() => {
+                setRetryCount(0);
+                fetchData();
+              }}
+            >
+              RETRY
+            </Button>
+          }
+        >
+          <AlertTitle>Failed to Load Analytics</AlertTitle>
           {error}
         </Alert>
       </Container>
@@ -102,6 +176,36 @@ const AnalyticsDashboard: React.FC = () => {
 
   return (
     <Container maxWidth="xl">
+      {error && retryCount < 3 && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          Having trouble loading data. Retrying... ({retryCount + 1}/3)
+        </Alert>
+      )}
+
+      {!error && batchAnalytics?.length === 0 && !isLoading && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          No analytics data available for the selected filters.
+        </Alert>
+      )}
+
+      <Snackbar
+        open={!!exportError}
+        autoHideDuration={6000}
+        onClose={handleCloseExportError}
+      >
+        <Alert 
+          onClose={handleCloseExportError}
+          severity="error"
+          sx={{ width: '100%' }}
+          action={
+            <Button color="inherit" size="small" onClick={handleExport}>
+              RETRY
+            </Button>
+          }
+        >
+          {exportError}
+        </Alert>
+      </Snackbar>
       <Grid container spacing={3}>
         {/* Filters */}
         <Grid item xs={12}>
@@ -123,7 +227,26 @@ const AnalyticsDashboard: React.FC = () => {
         ) : (
           <>
             {/* Key Metrics */}
-            {aggregateMetrics && (
+            {sectionErrors.metrics ? (
+              <Grid item xs={12}>
+                <Paper sx={{ p: 2 }}>
+                  <Alert 
+                    severity="error"
+                    action={
+                      <Button 
+                        color="inherit" 
+                        size="small" 
+                        onClick={() => handleRetrySection('metrics')}
+                      >
+                        RETRY
+                      </Button>
+                    }
+                  >
+                    Failed to load metrics: {sectionErrors.metrics}
+                  </Alert>
+                </Paper>
+              </Grid>
+            ) : aggregateMetrics && (
               <>
                 <Grid item xs={12} md={3}>
                   <MetricsCard
@@ -160,20 +283,58 @@ const AnalyticsDashboard: React.FC = () => {
 
             {/* Trends */}
             <Grid item xs={12} md={8}>
-              <TrendsChart
-                title="Message Volume Trends"
-                data={batchAnalytics?.map((batch: BatchAnalytics) => ({
-                  timestamp: batch.timing.created,
-                  value: batch.progress.total
-                })) || []}
-                dataKey="value"
-                color="#2196f3"
-              />
+              {sectionErrors.trends ? (
+                <Paper sx={{ p: 2 }}>
+                  <Alert 
+                    severity="error"
+                    action={
+                      <Button 
+                        color="inherit" 
+                        size="small" 
+                        onClick={() => handleRetrySection('trends')}
+                      >
+                        RETRY
+                      </Button>
+                    }
+                  >
+                    Failed to load trends: {sectionErrors.trends}
+                  </Alert>
+                </Paper>
+              ) : (
+                <TrendsChart
+                  title="Message Volume Trends"
+                  data={batchAnalytics?.map((batch: BatchAnalytics) => ({
+                    timestamp: batch.timing.created,
+                    value: batch.progress.total
+                  })) || []}
+                  dataKey="value"
+                  color="#2196f3"
+                />
+              )}
             </Grid>
 
             {/* System Metrics */}
             <Grid item xs={12} md={4}>
-              <SystemMetrics metrics={systemMetrics} />
+              {sectionErrors.system ? (
+                <Paper sx={{ p: 2 }}>
+                  <Alert 
+                    severity="error"
+                    action={
+                      <Button 
+                        color="inherit" 
+                        size="small" 
+                        onClick={() => handleRetrySection('system')}
+                      >
+                        RETRY
+                      </Button>
+                    }
+                  >
+                    Failed to load system metrics: {sectionErrors.system}
+                  </Alert>
+                </Paper>
+              ) : (
+                <SystemMetrics metrics={systemMetrics} />
+              )}
             </Grid>
           </>
         )}
