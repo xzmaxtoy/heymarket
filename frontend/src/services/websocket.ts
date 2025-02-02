@@ -7,6 +7,9 @@ let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY = 2000; // 2 seconds
 
+// Track subscribed batches to prevent duplicate subscriptions
+const subscribedBatches = new Set<string>();
+
 export function initializeWebSocket() {
   if (socket) return;
 
@@ -24,6 +27,8 @@ export function initializeWebSocket() {
 
   socket.on('disconnect', () => {
     console.log('WebSocket disconnected');
+    // Clear subscriptions on disconnect
+    subscribedBatches.clear();
   });
 
   socket.on('connect_error', (error) => {
@@ -33,37 +38,56 @@ export function initializeWebSocket() {
     if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
       console.error('Max reconnection attempts reached');
       socket?.close();
+      subscribedBatches.clear();
     }
   });
 
   // Batch event handlers
   socket.on('batch:state', ({ batchId, state }) => {
-    store.dispatch(updateBatch({ id: batchId, changes: state }));
+    if (subscribedBatches.has(batchId)) {
+      console.log(`Received state update for batch ${batchId}:`, state);
+      store.dispatch(updateBatch({ 
+        id: batchId, 
+        changes: {
+          ...state,
+          updated_at: new Date().toISOString()
+        }
+      }));
+    }
   });
 
   socket.on('batch:error', ({ batchId, error }) => {
-    console.error(`Batch ${batchId} error:`, error);
-    store.dispatch(updateBatch({
-      id: batchId,
-      changes: {
-        status: 'failed',
-        errors: [{
-          message: error.message,
-          timestamp: new Date().toISOString(),
-          category: error.category || 'unknown'
-        }]
-      }
-    }));
+    if (subscribedBatches.has(batchId)) {
+      console.error(`Batch ${batchId} error:`, error);
+      store.dispatch(updateBatch({
+        id: batchId,
+        changes: {
+          status: 'failed',
+          errors: [{
+            message: error.message,
+            timestamp: new Date().toISOString(),
+            category: error.category || 'unknown'
+          }],
+          updated_at: new Date().toISOString()
+        }
+      }));
+    }
   });
 
   socket.on('batch:complete', ({ batchId, state }) => {
-    store.dispatch(updateBatch({
-      id: batchId,
-      changes: {
-        ...state,
-        status: 'completed'
-      }
-    }));
+    if (subscribedBatches.has(batchId)) {
+      console.log(`Batch ${batchId} completed`);
+      store.dispatch(updateBatch({
+        id: batchId,
+        changes: {
+          ...state,
+          status: 'completed',
+          updated_at: new Date().toISOString()
+        }
+      }));
+      // Automatically unsubscribe from completed batches
+      unsubscribeFromBatch(batchId);
+    }
   });
 }
 
@@ -72,12 +96,28 @@ export function subscribeToBatch(batchId: string) {
     console.warn('WebSocket not connected');
     return;
   }
-  socket.emit('subscribe:batch', batchId);
+  if (!subscribedBatches.has(batchId)) {
+    socket.emit('subscribe:batch', batchId);
+    subscribedBatches.add(batchId);
+    console.log(`Subscribed to batch ${batchId}`);
+  }
 }
 
 export function unsubscribeFromBatch(batchId: string) {
   if (!socket?.connected) return;
-  socket.emit('unsubscribe:batch', batchId);
+  if (subscribedBatches.has(batchId)) {
+    socket.emit('unsubscribe:batch', batchId);
+    subscribedBatches.delete(batchId);
+    console.log(`Unsubscribed from batch ${batchId}`);
+  }
+}
+
+// Initialize socket connection if not already connected
+export function ensureSocketConnection() {
+  if (!socket) {
+    initializeWebSocket();
+  }
+  return socket?.connected || false;
 }
 
 // Batch control actions
@@ -109,5 +149,6 @@ export function closeWebSocket() {
   if (socket) {
     socket.close();
     socket = null;
+    subscribedBatches.clear();
   }
 }

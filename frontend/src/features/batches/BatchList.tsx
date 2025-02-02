@@ -16,7 +16,7 @@ import BatchListToolbar from './components/BatchListToolbar';
 import BatchStatusChip from './components/BatchStatusChip';
 import BatchProgress from './components/BatchProgress';
 import BatchActions from './components/BatchActions';
-import { subscribeToBatch, unsubscribeFromBatch } from '@/services/websocket';
+import { subscribeToBatch, unsubscribeFromBatch, ensureSocketConnection } from '@/services/websocket';
 
 export const BatchList: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -25,29 +25,27 @@ export const BatchList: React.FC = () => {
   const { pageSize, currentPage, total } = useAppSelector(selectBatchesPagination);
   const filter = useAppSelector(selectBatchesFilter);
 
-  // Load batches on mount and when filter/pagination changes
+  // Initialize websocket and load batches on mount
   React.useEffect(() => {
+    ensureSocketConnection();
     dispatch(fetchBatches({ page: currentPage + 1, pageSize, filter }));
   }, [dispatch, currentPage, pageSize, filter]);
 
   // Subscribe to batch updates
   React.useEffect(() => {
-    // Subscribe to all visible batches
-    batches.forEach(batch => {
-      if (batch.status === 'processing' || batch.status === 'pending') {
-        subscribeToBatch(batch.id);
-      }
-    });
+    // Get batch IDs that need subscription
+    const batchIds = batches
+      .filter(batch => batch.status === 'processing' || batch.status === 'pending')
+      .map(batch => batch.id);
+
+    // Subscribe to filtered batches
+    batchIds.forEach(subscribeToBatch);
 
     // Cleanup subscriptions
     return () => {
-      batches.forEach(batch => {
-        if (batch.status === 'processing' || batch.status === 'pending') {
-          unsubscribeFromBatch(batch.id);
-        }
-      });
+      batchIds.forEach(unsubscribeFromBatch);
     };
-  }, [batches]);
+  }, [batches.map(b => `${b.id}-${b.status}`).join(',')]); // Only re-run if batch IDs or statuses change
 
   const handleRefreshBatch = (batchId: string) => {
     dispatch(fetchBatches({ page: currentPage + 1, pageSize, filter }));
@@ -66,8 +64,7 @@ export const BatchList: React.FC = () => {
     {
       field: 'name',
       headerName: 'Name',
-      flex: 1,
-      minWidth: 200,
+      width: 150,
     },
     {
       field: 'status',
