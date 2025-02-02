@@ -55,14 +55,15 @@ export const TemplateFormDialog: React.FC<TemplateFormDialogProps> = ({
     const uniqueVariables = new Set(matches.map(match => match.slice(2, -2).trim()));
     
     // Check for malformed variables
-    const malformedRegex = /{{[^}]*}(?!})|(?<!{){[^}]*}}/g;
-    if (malformedRegex.test(content)) {
-      errors.content = 'Invalid variable syntax. Please check your curly braces.';
-      return false;
-    }
-
-    // Check if all variables are valid
+    const malformedRegex = /{{[^}]*}(?!})|(?<!{){[^}]*}}|{[^{]|[^}]}/g;
+    const validVariableRegex = /^[a-zA-Z0-9_]+$/;
+    
+    // Check each variable name is valid
     for (const variable of uniqueVariables) {
+      if (!validVariableRegex.test(variable)) {
+        errors.content = `Invalid variable name: ${variable}. Use only letters, numbers, and underscores.`;
+        return false;
+      }
       if (!variables.includes(variable)) {
         errors.content = `Unknown variable: ${variable}`;
         return false;
