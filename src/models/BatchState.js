@@ -1,4 +1,4 @@
-import { updateBatchStatus, updateBatchLogs, createBatchErrorLog, completeBatch } from '../services/supabase.js';
+import { updateBatchStatus, updateBatchLogs, createBatchErrorLog, completeBatch, supabase } from '../services/supabase.js';
 import { emitBatchUpdate, emitBatchError, emitBatchComplete } from '../websocket/server.js';
 
 /**
@@ -44,12 +44,32 @@ class BatchState {
     this.timing.started = new Date().toISOString();
 
     try {
-      await updateBatchStatus(this.id, {
-        status: this.status,
-        started_at: this.timing.started
-      });
+      // First try to update with started_at column
+      try {
+        await updateBatchStatus(this.id, {
+          status: this.status,
+          started_at: this.timing.started
+        });
+      } catch (error) {
+        if (error.message?.includes("'started_at' column")) {
+          // Add started_at column if it doesn't exist
+          await supabase.rpc('add_column_if_not_exists', {
+            table_name: 'sms_batches',
+            column_name: 'started_at',
+            column_type: 'timestamp with time zone'
+          });
+          
+          // Retry update
+          await updateBatchStatus(this.id, {
+            status: this.status,
+            started_at: this.timing.started
+          });
+        } else {
+          throw error;
+        }
+      }
+
       await updateBatchLogs(this.id, this.status);
-      
       this.emitUpdate();
     } catch (error) {
       console.error('Error updating batch start state:', error);
@@ -144,10 +164,31 @@ class BatchState {
     this.status = 'failed';
     
     try {
-      await updateBatchStatus(this.id, {
-        status: 'failed',
-        error: error.message
-      });
+      // First try to update with error column
+      try {
+        await updateBatchStatus(this.id, {
+          status: 'failed',
+          error: error.message
+        });
+      } catch (updateError) {
+        if (updateError.message?.includes("'error' column")) {
+          // Add error column if it doesn't exist
+          await supabase.rpc('add_column_if_not_exists', {
+            table_name: 'sms_batches',
+            column_name: 'error',
+            column_type: 'text'
+          });
+          
+          // Retry update
+          await updateBatchStatus(this.id, {
+            status: 'failed',
+            error: error.message
+          });
+        } else {
+          throw updateError;
+        }
+      }
+
       await createBatchErrorLog(this.id, {
         error: error.message,
         category: 'system'
