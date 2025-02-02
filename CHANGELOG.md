@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - Individual message status updates in batch logs
 - Real-time status persistence for batch operations
 - Proper error state handling in Supabase records
+- Batch cancellation handling and synchronization
 
 ### Technical Details
 - Enhanced WebSocket service to update Supabase on status changes
@@ -16,6 +17,9 @@ All notable changes to this project will be documented in this file.
 - Improved error handling for Supabase updates
 - Added fallback mechanisms for batch log updates
 - Updated batch model to include detailed results in state
+- Added proper batch cancellation with remaining message handling
+- Added /api/batch/:batchId/cancel endpoint
+- Improved status synchronization between backend and database
 
 ## [2.2.0] - 2025-02-02
 
