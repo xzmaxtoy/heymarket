@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.2] - 2025-02-02
+
+### Fixed
+- Batch message variables now properly use customer-specific data
+- Optimized batch log storage to only include used variables
+- Fixed duplicate variables in batch creation
+- Improved template variable handling efficiency
+- Fixed inconsistency between stored and used variables
+
+### Technical Details
+- Added template variable extraction utilities
+- Updated batch creation to use customer-specific variables
+- Optimized Supabase batch log storage
+- Improved API payload efficiency
+- Enhanced variable logging and tracking in batch processing
+- Added variable consistency checks in message creation
+
 ## [2.2.1] - 2025-02-02
 
 ### Fixed
@@ -9,7 +26,6 @@ All notable changes to this project will be documented in this file.
 - Individual message status updates in batch logs
 - Real-time status persistence for batch operations
 - Proper error state handling in Supabase records
-- Batch cancellation handling and synchronization
 
 ### Technical Details
 - Enhanced WebSocket service to update Supabase on status changes
@@ -17,9 +33,6 @@ All notable changes to this project will be documented in this file.
 - Improved error handling for Supabase updates
 - Added fallback mechanisms for batch log updates
 - Updated batch model to include detailed results in state
-- Added proper batch cancellation with remaining message handling
-- Added /api/batch/:batchId/cancel endpoint
-- Improved status synchronization between backend and database
 
 ## [2.2.0] - 2025-02-02
 

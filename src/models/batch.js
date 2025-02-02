@@ -159,8 +159,15 @@ class Batch {
             recipient.overrides
           );
 
-    // Send message
-    const messageConfig = {
+          // Log message creation
+          console.log('Creating message with variables:', {
+            phoneNumber: recipient.phoneNumber,
+            variables: recipient.variables,
+            message: message.message
+          });
+
+          // Send message
+          const messageConfig = {
       ...addHeymarketAuth(auth),
       url: `${config.heymarketBaseUrl}/message/send`,
             method: 'POST',
@@ -205,7 +212,8 @@ class Batch {
             status: 'success',
             messageId: response.data.message?.id || response.data.id,
             timestamp: response.data.message?.created_at || response.data.created_at || new Date().toISOString(),
-            attempts: attempts + 1
+            attempts: attempts + 1,
+            variables: recipient.variables // Store variables used for this message
           });
 
           success = true;
@@ -338,38 +346,6 @@ class Batch {
     this.status = 'processing';
     emitBatchUpdate(this.id, this.getState());
     await this.start(this.lastAuth);
-  }
-
-  /**
-   * Cancel batch processing
-   */
-  async cancel() {
-    // Only allow cancelling pending or processing batches
-    if (this.status !== 'pending' && this.status !== 'processing') {
-      throw new Error(`Cannot cancel batch in ${this.status} status`);
-    }
-
-    // Update status and mark remaining messages as cancelled
-    this.status = 'cancelled';
-    
-    // For any pending recipients, add them to results as cancelled
-    const remainingRecipients = this.recipients.slice(this.currentRecipientIndex);
-    remainingRecipients.forEach(recipient => {
-      this.results.push({
-        phoneNumber: recipient.phoneNumber,
-        status: 'cancelled',
-        timestamp: new Date().toISOString()
-      });
-    });
-
-    // Update progress counts
-    const cancelledCount = remainingRecipients.length;
-    this.progress.pending = 0;
-    this.progress.processing = 0;
-    this.progress.failed += cancelledCount; // Count cancelled as failed
-
-    // Emit final state
-    emitBatchUpdate(this.id, this.getState());
   }
 
   /**

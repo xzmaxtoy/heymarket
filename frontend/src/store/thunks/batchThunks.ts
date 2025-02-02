@@ -9,6 +9,7 @@ import {
   BatchCreationState,
   BatchStatus,
 } from '@/features/batches/types';
+import { extractTemplateVariables, extractRequiredVariables } from '@/utils/templateUtils';
 import {
   setBatches,
   setLoading,
@@ -49,20 +50,23 @@ const createBatchRecord = async (batchData: BatchCreationState): Promise<Batch> 
 
 // Create batch logs
 const createBatchLogs = async (batchId: string, batchData: BatchCreationState) => {
-  const batchLogs = batchData.customers.map(customer => ({
-    batch_id: batchId,
-    targets: customer.phone,
-    message: batchData.template?.content || '',
-    variables: {
-      ...batchData.variables,
-      customer: {
-        id: customer.id,
-        name: customer.name,
-        phone: customer.phone,
-      },
-    },
-    status: 'pending',
-  }));
+  // Extract variables used in template
+  const templateContent = batchData.template?.content || '';
+  const usedVariables = extractTemplateVariables(templateContent);
+
+  // Create logs with only required variables for each customer
+  const batchLogs = batchData.customers.map(customer => {
+    // Extract only the variables used in template
+    const customerVars = extractRequiredVariables(customer, usedVariables);
+    
+    return {
+      batch_id: batchId,
+      targets: customer.phone,
+      message: templateContent,
+      variables: customerVars,
+      status: 'pending',
+    };
+  });
 
   const { error } = await supabase
     .from('sms_batch_log')
@@ -155,6 +159,20 @@ export const createBatch = createAsyncThunk(
       batchRecord = await createBatchRecord(batchData);
       console.log('Batch created in Supabase:', batchRecord);
 
+      // Extract variables used in template
+      const templateContent = batchData.template?.content || '';
+      const usedVariables = extractTemplateVariables(templateContent);
+
+      // Create batch logs and prepare recipient data
+      const recipients = batchData.customers.map(customer => {
+        // Extract only the variables used in template
+        const customerVars = extractRequiredVariables(customer, usedVariables);
+        return {
+          phoneNumber: customer.phone,
+          variables: customerVars,
+        };
+      });
+
       // Create batch logs
       await createBatchLogs(batchRecord.id, batchData);
       console.log('Batch logs created in Supabase');
@@ -165,18 +183,8 @@ export const createBatch = createAsyncThunk(
 
         await api.post('/api/batch', {
           batchId: batchRecord.id,
-          text: batchData.template?.content,
-          recipients: batchData.customers.map(customer => ({
-            phoneNumber: customer.phone,
-            variables: {
-              ...batchData.variables,
-              customer: {
-                id: customer.id,
-                name: customer.name,
-                phone: customer.phone,
-              },
-            },
-          })),
+          text: templateContent,
+          recipients,
           options: {
             scheduleTime: batchData.scheduledFor,
             priority: 'normal',
@@ -260,18 +268,27 @@ export const cancelBatch = createAsyncThunk(
     try {
       console.log('Cancelling batch:', batchId);
 
-      // Call backend cancel endpoint
-      const response = await api.post<{ success: boolean; data: Batch }>(
-        `/api/batch/${batchId}/cancel`,
-        {}
-      );
+      const { data, error } = await supabase
+        .from('sms_batches')
+        .update({ status: 'cancelled' })
+        .eq('id', batchId)
+        .select()
+        .single();
 
-      if (!response.success) {
-        throw new Error('Failed to cancel batch');
-      }
+      if (error) throw error;
+      if (!data) throw new Error('Failed to cancel batch');
 
-      console.log('Batch cancelled:', response.data);
-      return response.data;
+      // Update pending batch logs to cancelled
+      const { error: logsError } = await supabase
+        .from('sms_batch_log')
+        .update({ status: 'cancelled' })
+        .eq('batch_id', batchId)
+        .eq('status', 'pending');
+
+      if (logsError) throw logsError;
+
+      console.log('Batch cancelled:', data);
+      return data as Batch;
     } catch (error) {
       console.error('Error cancelling batch:', error);
       throw new Error(handleError(error));
