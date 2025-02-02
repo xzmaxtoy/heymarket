@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Management</title>
+    <link href="/output.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <h1 class="text-2xl font-bold text-gray-900 mb-6">Customer Management</h1>
+            
+            <!-- Advanced Filters -->
+            <div class="mb-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-medium text-gray-900">Advanced Filters</h3>
+                    <button id="addFilter" class="btn btn-secondary">Add Filter</button>
+                </div>
+                <div id="filterContainer" class="space-y-4">
+                    <!-- Filter rows will be added here -->
+                </div>
+            </div>
+
+            <!-- Filter Template (hidden) -->
+            <template id="filterRowTemplate">
+                <div class="filter-row grid grid-cols-12 gap-4 items-end">
+                    <div class="col-span-3">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Column</label>
+                        <select class="filter-column input-field">
+                            <!-- Column options will be populated dynamically -->
+                        </select>
+                    </div>
+                    <div class="col-span-3">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Operator</label>
+                        <select class="filter-operator input-field">
+                            <option value="equals">Equals</option>
+                            <option value="contains">Contains</option>
+                            <option value="starts_with">Starts With</option>
+                            <option value="ends_with">Ends With</option>
+                            <option value="greater_than">Greater Than</option>
+                            <option value="less_than">Less Than</option>
+                            <option value="between">Between</option>
+                            <option value="in_list">In List</option>
+                        </select>
+                    </div>
+                    <div class="col-span-5 filter-value-container">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Value</label>
+                        <input type="text" class="filter-value input-field" placeholder="Enter value">
+                    </div>
+                    <div class="col-span-1">
+                        <button class="remove-filter btn btn-icon text-red-600 hover:text-red-800">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </template>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-wrap gap-3 mb-6">
+                <button id="applyFilters" class="btn btn-primary">Apply Filters</button>
+                <button id="clearFilters" class="btn btn-secondary">Clear Filters</button>
+                <button id="selectAll" class="btn btn-secondary">Select All</button>
+                <button id="sendMessage" class="btn btn-primary opacity-50 cursor-not-allowed" disabled>Send Message</button>
+            </div>
+
+            <!-- Selected Count -->
+            <div id="selectedCount" class="bg-gray-100 rounded-md p-3 text-center mb-6">
+                Selected: 0 customers
+            </div>
+
+            <!-- Column Visibility Controls -->
+            <div class="mb-6">
+                <button id="toggleColumnVisibility" class="flex items-center justify-between w-full p-4 bg-gray-50 rounded-lg hover:bg-gray-100">
+                    <h3 class="text-lg font-medium text-gray-900">Column Visibility</h3>
+                    <svg class="w-5 h-5 transform transition-transform" id="columnVisibilityArrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </button>
+                <div class="hidden p-4 bg-gray-50 rounded-lg mt-2" id="columnVisibilityPanel">
+                    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3" id="columnControls">
+                        <!-- Column toggles will be inserted here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Customer Table -->
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="w-12 px-6 py-3">
+                                <input type="checkbox" id="selectAllCheckbox" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            </th>
+                            <th scope="col" data-column="name" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Name</th>
+                            <th scope="col" data-column="phone" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Phone</th>
+                            <th scope="col" data-column="email" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Email</th>
+                            <th scope="col" data-column="city" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">City</th>
+                            <th scope="col" data-column="date_active" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Date Active</th>
+                            <th scope="col" data-column="credit" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Credit</th>
+                            <th scope="col" data-column="point" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Points</th>
+                            <th scope="col" data-column="date_create" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Date Created</th>
+                            <th scope="col" data-column="fashion_percentage" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Fashion %</th>
+                            <th scope="col" data-column="shaper_percentage" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Shaper %</th>
+                            <th scope="col" data-column="bra_percentage" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Bra %</th>
+                            <th scope="col" data-column="other_percentage" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Other %</th>
+                            <th scope="col" data-column="birthday" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Birthday</th>
+                            <th scope="col" data-column="address" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Address</th>
+                            <th scope="col" data-column="postcode" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Postcode</th>
+                            <th scope="col" data-column="remarks" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Remarks</th>
+                            <th scope="col" data-column="ref_cus_id" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Ref Customer ID</th>
+                            <th scope="col" data-column="staff_id" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Staff ID</th>
+                            <th scope="col" data-column="card_store_id" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Card Store ID</th>
+                            <th scope="col" data-column="store_active" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Store Active</th>
+                            <th scope="col" data-column="cus_id" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Customer ID</th>
+                            <th scope="col" data-column="code" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Code</th>
+                            <th scope="col" data-column="option1" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Option 1</th>
+                            <th scope="col" data-column="option2" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Option 2</th>
+                            <th scope="col" data-column="option3" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden">Option 3</th>
+                        </tr>
+                    </thead>
+                    <tbody id="customerTableBody" class="bg-white divide-y divide-gray-200">
+                        <!-- Customer rows will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="flex items-center justify-between mt-6">
+                <div class="flex items-center gap-2">
+                    <button id="prevPage" class="btn btn-secondary" disabled>Previous</button>
+                    <span id="pageInfo" class="text-sm text-gray-700">Page 1 of 1</span>
+                    <button id="nextPage" class="btn btn-secondary" disabled>Next</button>
+                </div>
+                <div class="text-sm text-gray-700">
+                    Showing <span id="showingCount">0</span> of <span id="totalCount">0</span> customers
+                </div>
+            </div>
+
+            <!-- Message Form -->
+            <div id="messageForm" class="hidden mt-8 bg-gray-50 rounded-lg p-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Send Batch Message</h3>
+                <div class="mb-4">
+                    <label for="messageTemplate" class="block text-sm font-medium text-gray-700 mb-1">Message Template</label>
+                    <textarea id="messageTemplate" rows="4" class="input-field" 
+                        placeholder="Enter your message. Use {name} for customer name, {phone} for phone, etc."></textarea>
+                </div>
+                <div class="flex gap-3">
+                    <button id="previewMessage" class="btn btn-secondary">Preview</button>
+                    <button id="confirmSend" class="btn btn-primary">Send</button>
+                    <button id="cancelSend" class="btn btn-secondary">Cancel</button>
+                </div>
+                <div id="previewArea" class="mt-4 space-y-2"></div>
+            </div>
+
+            <!-- Status Messages -->
+            <div id="status" class="hidden mt-6 p-4 rounded-md"></div>
+        </div>
+    </div>
+    <script type="module" src="customers.js"></script>
+</body>
+</html>

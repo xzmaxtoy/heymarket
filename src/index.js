@@ -7,6 +7,7 @@ import yaml from 'js-yaml';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { initWebSocket } from './websocket/server.js';
 import config from './config/config.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -15,18 +16,41 @@ import { authenticate } from './middleware/auth.js';
 import { errorHandler, notFound } from './middleware/error.js';
 import messagesRouter from './routes/messages.js';
 import batchRouter from './routes/batch.js';
+import customersRouter from './routes/customers.js';
 
 const app = express();
 
-// Basic security middleware
-app.use(helmet());
-
 // Configure CORS
 app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  origin: process.env.NODE_ENV === 'production' ? 'https://your-production-domain.com' : 'http://localhost:5173',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Creator-Id',
+    'X-Inbox-Id',
+    'X-Request-Id'
+  ],
+  credentials: true
 }));
+
+// Basic security middleware with CSS, images, and external scripts enabled
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://esm.sh"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      fontSrc: ["'self'", "data:"],
+      connectSrc: ["'self'", "https://zpwwsiljoyrfibillxzd.supabase.co"]
+    },
+  },
+  crossOriginEmbedderPolicy: false
+}));
+
+// Serve static files from public directory
+app.use(express.static(join(__dirname, 'public')));
 
 // Handle preflight requests
 app.options('*', cors());
@@ -65,12 +89,12 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Authentication middleware only for API routes
-app.use('/api', authenticate);
+// Public customer routes
+app.use('/api/customers', customersRouter);
 
-// API routes
-app.use('/api/messages', messagesRouter);
-app.use('/api/batch', batchRouter);
+// Authentication middleware for protected API routes
+app.use('/api/messages', authenticate, messagesRouter);
+app.use('/api/batch', authenticate, batchRouter);
 
 // Error handling
 app.use(notFound);
@@ -83,6 +107,9 @@ const server = app.listen(port, () => {
   console.log(`Environment: ${process.env.NODE_ENV}`);
   console.log(`Process ID: ${process.pid}`);
 });
+
+// Initialize WebSocket server
+initWebSocket(server);
 
 // Handle shutdown gracefully
 process.on('SIGTERM', () => {
