@@ -1,13 +1,24 @@
 import { promisify } from 'util';
-import { Template } from './template.js';
-import { getTemplateById } from '../services/supabase.js';
-import BatchProcessor from './BatchProcessor.js';
-import BatchState from './BatchState.js';
+import axios from 'axios';
+import config from '../config/config.js';
+import { addHeymarketAuth } from '../middleware/auth.js';
+import { Template, getTemplate } from './template.js';
+import { isDuplicateMessage, recordMessage } from '../utils/messageHistory.js';
+import { employeeList } from '../utils/employeeList.js';
+import { emitBatchUpdate, emitBatchError, emitBatchComplete } from '../websocket/server.js';
 
 const sleep = promisify(setTimeout);
 
 // Batch status storage
 const batches = new Map();
+
+// Priority delay mapping (in milliseconds)
+// Heymarket limit: 500 requests per minute = ~8.33 requests per second
+const PRIORITY_DELAYS = {
+  high: 120,    // ~8 messages per second
+  normal: 200,  // 5 messages per second
+  low: 500      // 2 messages per second
+};
 
 class Batch {
   constructor(id, template, recipients, options = {}) {
@@ -23,136 +34,345 @@ class Batch {
       }
     };
 
-    // Initialize state manager
-    this.state = new BatchState(id, {
-      total_recipients: recipients.length
-    });
-
+    this.status = 'pending';
     this.isPaused = false;
     this.currentRecipientIndex = 0;
-    this.lastAuth = null;
+    this.progress = {
+      total: recipients.length,
+      pending: recipients.length,
+      processing: 0,
+      completed: 0,
+      failed: 0
+    };
+    this.timing = {
+      created: new Date().toISOString(),
+      started: null,
+      estimated_completion: null
+    };
+    this.errors = {
+      categories: {},
+      samples: []
+    };
+    this.metrics = {
+      messages_per_second: 0,
+      success_rate: 0,
+      credits_used: 0
+    };
+    this.results = [];
   }
 
   /**
    * Start batch processing
    */
   async start(auth) {
-    this.lastAuth = auth;
-
-    try {
-      console.log('Starting batch processing:', {
-        batchId: this.id,
-        recipientCount: this.recipients.length,
-        template: {
-          id: this.template.id,
-          hasText: !!this.template.text,
-          variableCount: this.template.variables?.length
-        },
-        auth: {
-          hasApiKey: !!auth.apiKey,
-          headers: Object.keys(auth.headers || {})
-        }
-      });
-
-      // Handle scheduled batches
-      if (this.options.scheduleTime) {
-        const scheduledTime = new Date(this.options.scheduleTime);
-        const now = new Date();
-        if (scheduledTime > now) {
-          console.log('Batch is scheduled for future:', {
-            scheduledTime,
-            delay: scheduledTime - now
-          });
-          const delay = scheduledTime - now;
-          await sleep(delay);
-        }
-      }
-
-      await this.state.start();
-      const startTime = Date.now();
-
-      // Process each recipient
-      for (let i = this.currentRecipientIndex; i < this.recipients.length; i++) {
-        if (this.isPaused) {
-          console.log('Batch processing paused at index:', i);
-          this.currentRecipientIndex = i;
-          return;
-        }
-
-        const recipient = this.recipients[i];
-        console.log('Processing recipient:', {
-          index: i,
-          phoneNumber: recipient.phoneNumber,
-          hasVariables: !!recipient.variables,
-          hasOverrides: !!recipient.overrides
-        });
-
-        this.state.startProcessingMessage();
-
-        // Process message
-        const result = await BatchProcessor.processMessage(
-          recipient,
-          this.template,
-          auth,
-          {
-            maxAttempts: this.options.retryStrategy.maxAttempts,
-            backoffMinutes: this.options.retryStrategy.backoffMinutes
-          }
-        );
-
-        console.log('Message processing result:', {
-          status: result.status,
-          attempts: result.attempts,
-          errorCategory: result.errorCategory,
-          timestamp: result.timestamp
-        });
-
-        // Record result and update metrics
-        await this.state.recordResult(result);
-        this.state.updateMetrics(startTime);
-
-        // Respect rate limits
-        const delay = BatchProcessor.getProcessingDelay(this.options.priority);
-        console.log('Applying rate limit delay:', {
-          priority: this.options.priority,
-          delay
-        });
+    if (this.status === 'completed' || this.status === 'failed') {
+      throw new Error(`Cannot start batch in ${this.status} status`);
+    }
+    if (this.options.scheduleTime) {
+      const scheduledTime = new Date(this.options.scheduleTime);
+      const now = new Date();
+      if (scheduledTime > now) {
+        const delay = scheduledTime - now;
         await sleep(delay);
       }
-
-      console.log('Batch processing completed:', {
-        batchId: this.id,
-        duration: Date.now() - startTime
-      });
-      await this.state.complete();
-    } catch (error) {
-      console.error('Batch processing error:', {
-        batchId: this.id,
-        error: error.message,
-        stack: error.stack
-      });
-      await this.state.fail(error);
     }
+
+    this.status = 'processing';
+    this.timing.started = new Date().toISOString();
+    
+    // Calculate estimated completion time
+    const totalTime = this.recipients.length * PRIORITY_DELAYS[this.options.priority];
+    const estimatedCompletion = new Date(Date.now() + totalTime);
+    this.timing.estimated_completion = estimatedCompletion.toISOString();
+
+    // Emit initial processing state
+    emitBatchUpdate(this.id, this.getState());
+
+    const startTime = Date.now();
+    let successCount = 0;
+
+    for (let i = this.currentRecipientIndex; i < this.recipients.length; i++) {
+      if (this.isPaused) {
+        this.status = 'paused';
+        this.currentRecipientIndex = i;
+        emitBatchUpdate(this.id, this.getState());
+        return;
+      }
+
+      const recipient = this.recipients[i];
+      this.progress.pending--;
+      this.progress.processing++;
+
+      let attempts = 0;
+      let success = false;
+
+      while (attempts < this.options.retryStrategy.maxAttempts && !success) {
+        try {
+          if (attempts > 0) {
+            let backoffTime;
+            
+            // Use standard exponential backoff for first retry
+            if (attempts === 1) {
+              backoffTime = this.options.retryStrategy.backoffMinutes * 60 * 1000;
+              console.log(`First retry, waiting ${backoffTime/1000} seconds`);
+            } else {
+              // For subsequent retries, use longer delay for rate limits
+              backoffTime = 60000; // 60 seconds minimum for rate limits
+              console.log(`Rate limit retry ${attempts}, waiting ${backoffTime/1000} seconds`);
+            }
+            
+            await sleep(backoffTime);
+          }
+
+          // Check for duplicates (skip for employees)
+          if (!employeeList.isEmployee(recipient.phoneNumber)) {
+            console.log('Checking duplicates for non-employee:', recipient.phoneNumber);
+            const isDuplicate = await isDuplicateMessage(
+              recipient.phoneNumber,
+              this.template.id,
+              this.template.text,
+              recipient.variables
+            );
+            
+            if (isDuplicate) {
+              console.log('Duplicate message detected, skipping:', recipient.phoneNumber);
+              this.results.push({
+                phoneNumber: recipient.phoneNumber,
+                status: 'skipped',
+                reason: 'duplicate_message',
+                timestamp: new Date().toISOString()
+              });
+              this.progress.completed++;  // Count as completed
+              success = true;  // Skip further attempts
+              continue;
+            } else {
+              console.log('No duplicate found, proceeding with send');
+            }
+          } else {
+            console.log('Employee detected, skipping duplicate check:', recipient.phoneNumber);
+          }
+
+          // Create message from template
+          const message = this.template.createMessage(
+            recipient.phoneNumber,
+            recipient.variables,
+            recipient.overrides
+          );
+
+    // Send message
+    const messageConfig = {
+      ...addHeymarketAuth(auth),
+      url: `${config.heymarketBaseUrl}/message/send`,
+            method: 'POST',
+            data: {
+              inbox_id: 21571,
+              creator_id: 45507,
+              channel: 'sms',
+              phone_number: message.phoneNumber.startsWith('1') ? message.phoneNumber : `1${message.phoneNumber}`,
+              text: message.message,
+              local_id: `${this.id}_${Date.now()}`,
+              ...(message.isPrivate && { private: true }),
+              ...(message.author && { author: message.author }),
+              ...(message.attachments && { media_url: message.attachments[0] })
+            },
+            timeout: 10000
+          };
+
+          const formattedPhone = message.phoneNumber.startsWith('1') ? message.phoneNumber : `1${message.phoneNumber}`;
+          console.log('Sending message:', {
+            originalPhone: message.phoneNumber,
+            formattedPhone: formattedPhone,
+            text: message.message,
+            attempt: attempts + 1
+          });
+
+          console.log('Sending to Heymarket API:', messageConfig);
+          const response = await axios(messageConfig);
+          
+          console.log('API Response:', {
+            data: response.data,
+            status: response.status,
+            headers: response.headers
+          });
+          console.log('Message sent successfully:', {
+            messageId: response.data.message?.id || response.data.id,
+            status: response.data.message?.status || response.data.status
+          });
+          
+          // Record success
+          this.results.push({
+            phoneNumber: recipient.phoneNumber,
+            status: 'success',
+            messageId: response.data.message?.id || response.data.id,
+            timestamp: response.data.message?.created_at || response.data.created_at || new Date().toISOString(),
+            attempts: attempts + 1
+          });
+
+          success = true;
+          successCount++;
+          this.progress.completed++;
+          this.metrics.credits_used++;
+
+          // Record sent message for duplicate tracking
+          if (!employeeList.isEmployee(recipient.phoneNumber)) {
+            await recordMessage(
+              recipient.phoneNumber,
+              this.template.id,
+              this.template.text,
+              recipient.variables
+            );
+          }
+
+        } catch (error) {
+          const isRateLimit = error?.response?.status === 429;
+          console.error('Error sending message:', {
+            phoneNumber: message.phoneNumber,
+            attempt: attempts + 1,
+            errorType: isRateLimit ? 'RATE_LIMIT' : 'API_ERROR',
+            error: error.message,
+            response: error.response?.data,
+            status: error.response?.status,
+            rateLimitInfo: isRateLimit ? {
+              limit: error.response?.headers?.['x-ratelimit-limit'],
+              remaining: error.response?.headers?.['x-ratelimit-remaining'],
+              reset: error.response?.headers?.['x-ratelimit-reset']
+            } : null
+          });
+          
+          attempts++;
+          
+          // For rate limits, pause processing for 60 seconds
+          if (isRateLimit) {
+            console.log('Rate limit hit, pausing batch processing for 60 seconds...');
+            await sleep(60000);
+          }
+          
+          // Categorize error
+          const category = this.categorizeError(error);
+          this.errors.categories[category] = (this.errors.categories[category] || 0) + 1;
+
+          // Store error sample with more details
+          if (this.errors.samples.length < 10) {
+            this.errors.samples.push({
+              phoneNumber: recipient.phoneNumber,
+              error: error.message,
+              category,
+              status: error.response?.status,
+              rateLimitInfo: isRateLimit ? {
+                limit: error.response?.headers?.['x-ratelimit-limit'],
+                remaining: error.response?.headers?.['x-ratelimit-remaining'],
+                reset: error.response?.headers?.['x-ratelimit-reset']
+              } : null,
+              timestamp: new Date().toISOString()
+            });
+          }
+
+          // If final attempt failed, record failure with details
+          if (attempts === this.options.retryStrategy.maxAttempts) {
+            this.results.push({
+              phoneNumber: recipient.phoneNumber,
+              status: 'failed',
+              error: error.message,
+              errorCategory: category,
+              rateLimitInfo: isRateLimit ? {
+                limit: error.response?.headers?.['x-ratelimit-limit'],
+                remaining: error.response?.headers?.['x-ratelimit-remaining'],
+                reset: error.response?.headers?.['x-ratelimit-reset']
+              } : null,
+              timestamp: new Date().toISOString(),
+              attempts
+            });
+            this.progress.failed++;
+          }
+        }
+      }
+
+      this.progress.processing--;
+
+      // Update metrics
+      const elapsedSeconds = (Date.now() - startTime) / 1000;
+      this.metrics.messages_per_second = (this.progress.completed + this.progress.failed) / elapsedSeconds;
+      this.metrics.success_rate = (successCount / (this.progress.completed + this.progress.failed)) * 100;
+
+      // Emit progress update
+      emitBatchUpdate(this.id, this.getState());
+
+      // Respect priority-based rate limiting
+      await sleep(PRIORITY_DELAYS[this.options.priority]);
+    }
+
+    this.status = 'completed';
+    emitBatchComplete(this.id, this.getState());
+  }
+
+  /**
+   * Categorize error type
+   */
+  categorizeError(error) {
+    if (error.response?.status === 429) return 'rate_limit';
+    if (error.response?.status === 400) return 'invalid_request';
+    if (error.code === 'ECONNABORTED') return 'timeout';
+    if (error.code === 'ECONNREFUSED') return 'network_error';
+    return 'unknown';
   }
 
   /**
    * Pause batch processing
    */
   async pause() {
-    if (this.state.status !== 'processing') {
+    if (this.status !== 'processing') {
       throw new Error('Can only pause processing batches');
     }
     this.isPaused = true;
+    // Status update will be handled in start() method
   }
 
   /**
    * Resume batch processing
    */
   async resume() {
-    if (this.state.status !== 'paused') {
+    if (this.status !== 'paused') {
       throw new Error('Can only resume paused batches');
     }
     this.isPaused = false;
+    this.status = 'processing';
+    emitBatchUpdate(this.id, this.getState());
+    await this.start(this.lastAuth);
+  }
+
+  /**
+   * Retry failed messages in batch
+   */
+  async retry() {
+    if (this.status !== 'completed' && this.status !== 'failed') {
+      throw new Error('Can only retry completed or failed batches');
+    }
+
+    // Collect failed recipients
+    const failedRecipients = this.results
+      .filter(result => result.status === 'failed')
+      .map(result => this.recipients.find(r => r.phoneNumber === result.phoneNumber))
+      .filter(Boolean);
+
+    if (failedRecipients.length === 0) {
+      throw new Error('No failed messages to retry');
+    }
+
+    // Reset progress for retry
+    this.status = 'processing';
+    this.progress.failed = 0;
+    this.progress.pending = failedRecipients.length;
+    this.progress.completed = this.results.filter(r => r.status === 'success').length;
+    this.currentRecipientIndex = 0;
+    this.recipients = failedRecipients;
+
+    // Clear previous errors
+    this.errors = {
+      categories: {},
+      samples: []
+    };
+
+    emitBatchUpdate(this.id, this.getState());
     await this.start(this.lastAuth);
   }
 
@@ -160,14 +380,23 @@ class Batch {
    * Get current batch state
    */
   getState() {
-    return this.state.getState();
+    return {
+      batchId: this.id,
+      status: this.status,
+      progress: this.progress,
+      timing: this.timing,
+      errors: this.errors,
+      metrics: this.metrics,
+      isPaused: this.isPaused,
+      results: this.results // Include message results in state
+    };
   }
 
   /**
    * Get detailed results
    */
   getResults() {
-    return this.state.results;
+    return this.results;
   }
 }
 
@@ -188,7 +417,7 @@ async function createBatch(templateData, recipients, options, auth) {
     if (templateData.id) {
       // If template has ID, fetch from storage
       console.log('Fetching template with ID:', templateData.id);
-      template = await getTemplateById(templateData.id);
+      template = await getTemplate(templateData.id);
       if (!template) {
         throw new Error('Template not found');
       }
@@ -223,9 +452,20 @@ async function createBatch(templateData, recipients, options, auth) {
 
   // Only start processing if autoStart is true
   if (options.autoStart) {
-    batch.start(auth).catch(async error => {
+    batch.start(auth).catch(error => {
       console.error('Batch processing error:', error);
-      await batch.state.fail(error);
+      batch.status = 'failed';
+      batch.errors.categories['system'] = (batch.errors.categories['system'] || 0) + 1;
+      batch.errors.samples.push({
+        error: error.message,
+        category: 'system',
+        timestamp: new Date().toISOString()
+      });
+      const state = batch.getState();
+      emitBatchError(batch.id, {
+        error: error.message,
+        state: state
+      });
     });
   }
 

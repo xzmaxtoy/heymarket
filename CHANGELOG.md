@@ -2,21 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2.3.0] - 2025-02-02
+## [2.2.1] - 2025-02-02
 
-### Changed
-- Improved batch processing architecture with better separation of concerns
-- Moved batch state management to backend for better reliability
-- Enhanced Supabase integration for persistent state management
+### Fixed
+- Batch status synchronization with Supabase database
+- Individual message status updates in batch logs
+- Real-time status persistence for batch operations
+- Proper error state handling in Supabase records
 
 ### Technical Details
-- Split batch.js into three focused components:
-  - BatchProcessor: Handles message processing logic
-  - BatchState: Manages state and Supabase persistence
-  - Batch: Orchestrates the process
-- Added backend Supabase service for centralized state management
-- Improved error handling and state updates
-- Maintained backward compatibility with existing API
+- Enhanced WebSocket service to update Supabase on status changes
+- Added individual message result tracking in batch state
+- Improved error handling for Supabase updates
+- Added fallback mechanisms for batch log updates
+- Updated batch model to include detailed results in state
 
 ## [2.2.0] - 2025-02-02
 

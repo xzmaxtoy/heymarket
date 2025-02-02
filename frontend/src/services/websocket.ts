@@ -1,14 +1,12 @@
 import { io, Socket } from 'socket.io-client';
 import { store } from '@/store';
 import { updateBatch } from '@/store/slices/batchesSlice';
+import { supabase } from './supabase';
 
 let socket: Socket | null = null;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY = 2000; // 2 seconds
-
-// Track subscribed batches and their callbacks
-const subscriptionCallbacks = new Map<string, (data: any) => void>();
 
 export function initializeWebSocket() {
   if (socket) return;
@@ -27,8 +25,6 @@ export function initializeWebSocket() {
 
   socket.on('disconnect', () => {
     console.log('WebSocket disconnected');
-    // Clear subscriptions on disconnect
-    subscriptionCallbacks.clear();
   });
 
   socket.on('connect_error', (error) => {
@@ -38,45 +34,102 @@ export function initializeWebSocket() {
     if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
       console.error('Max reconnection attempts reached');
       socket?.close();
-      subscriptionCallbacks.clear();
     }
   });
 
   // Batch event handlers
-  socket.on('batch:state', ({ batchId, state }) => {
-    const callback = subscriptionCallbacks.get(batchId);
-    if (callback) {
-      // Only emit log if status has changed
-      const currentBatch = store.getState().batches.items.find(b => b.id === batchId);
-      if (state.status !== currentBatch?.status) {
-        callback({
-          type: 'log',
-          logType: 'info',
-          message: `Batch state updated: ${state.status}`,
-          details: state
-        });
+  socket.on('batch:state', async ({ batchId, state }) => {
+    try {
+      // Update Supabase batch record
+      const { error: batchError } = await supabase
+        .from('sms_batches')
+        .update({
+          status: state.status,
+          completed_count: state.progress.completed,
+          failed_count: state.progress.failed,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', batchId);
+
+      if (batchError) throw batchError;
+
+      // Update individual message statuses in batch logs if results are provided
+      if (state.results && state.results.length > 0) {
+        for (const result of state.results) {
+          const { error: logError } = await supabase
+            .from('sms_batch_log')
+            .update({
+              status: result.status,
+              error: result.error || null,
+              updated_at: new Date().toISOString()
+            })
+            .eq('batch_id', batchId)
+            .eq('targets', result.phoneNumber);
+
+          if (logError) {
+            console.error('Error updating batch log:', logError);
+          }
+        }
       }
 
-      store.dispatch(updateBatch({ 
-        id: batchId, 
-        changes: {
-          ...state,
-          updated_at: new Date().toISOString()
-        }
-      }));
+      // Update Redux store
+      store.dispatch(updateBatch({ id: batchId, changes: state }));
+    } catch (error) {
+      console.error('Error updating batch state in Supabase:', error);
     }
   });
 
-  socket.on('batch:error', ({ batchId, error }) => {
-    const callback = subscriptionCallbacks.get(batchId);
-    if (callback) {
-      callback({
-        type: 'log',
-        logType: 'error',
-        message: error.message,
-        details: error
-      });
+  socket.on('batch:error', async ({ batchId, error, state }) => {
+    console.error(`Batch ${batchId} error:`, error);
+    try {
+      // Update Supabase batch record
+      const { error: batchError } = await supabase
+        .from('sms_batches')
+        .update({
+          status: 'failed',
+          completed_count: state?.progress?.completed || 0,
+          failed_count: state?.progress?.failed || 0,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', batchId);
 
+      if (batchError) throw batchError;
+
+      // Update individual message statuses if available
+      if (state?.results) {
+        for (const result of state.results) {
+          if (result.status === 'failed') {
+            const { error: logError } = await supabase
+              .from('sms_batch_log')
+              .update({
+                status: 'failed',
+                error: result.error || error.message,
+                updated_at: new Date().toISOString()
+              })
+              .eq('batch_id', batchId)
+              .eq('targets', result.phoneNumber);
+
+            if (logError) {
+              console.error('Error updating batch log:', logError);
+            }
+          }
+        }
+      } else {
+        // Fallback: Update all pending messages as failed
+        const { error: logError } = await supabase
+          .from('sms_batch_log')
+          .update({
+            status: 'failed',
+            error: error.message,
+            updated_at: new Date().toISOString()
+          })
+          .eq('batch_id', batchId)
+          .eq('status', 'pending');
+
+        if (logError) throw logError;
+      }
+
+      // Update Redux store
       store.dispatch(updateBatch({
         id: batchId,
         changes: {
@@ -86,79 +139,86 @@ export function initializeWebSocket() {
             timestamp: new Date().toISOString(),
             category: error.category || 'unknown'
           }],
-          updated_at: new Date().toISOString()
+          ...(state && { progress: state.progress })
         }
       }));
+    } catch (dbError) {
+      console.error('Error updating batch error in Supabase:', dbError);
     }
   });
 
-  socket.on('batch:complete', ({ batchId, state }) => {
-    const callback = subscriptionCallbacks.get(batchId);
-    if (callback) {
-      callback({
-        type: 'log',
-        logType: 'success',
-        message: 'Batch completed successfully',
-        details: state
-      });
+  socket.on('batch:complete', async ({ batchId, state }) => {
+    try {
+      // Update Supabase batch record
+      const { error: batchError } = await supabase
+        .from('sms_batches')
+        .update({
+          status: 'completed',
+          completed_count: state.progress.completed,
+          failed_count: state.progress.failed,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', batchId);
 
+      if (batchError) throw batchError;
+
+      // Update individual message statuses in batch logs
+      if (state.results && state.results.length > 0) {
+        for (const result of state.results) {
+          const { error: logError } = await supabase
+            .from('sms_batch_log')
+            .update({
+              status: result.status,
+              error: result.error || null,
+              updated_at: new Date().toISOString()
+            })
+            .eq('batch_id', batchId)
+            .eq('targets', result.phoneNumber);
+
+          if (logError) {
+            console.error('Error updating batch log:', logError);
+          }
+        }
+      } else {
+        // Fallback: Update any remaining pending messages as completed
+        const { error: logError } = await supabase
+          .from('sms_batch_log')
+          .update({
+            status: 'completed',
+            updated_at: new Date().toISOString()
+          })
+          .eq('batch_id', batchId)
+          .eq('status', 'pending');
+
+        if (logError) throw logError;
+      }
+
+      // Update Redux store
       store.dispatch(updateBatch({
         id: batchId,
         changes: {
           ...state,
-          status: 'completed',
-          updated_at: new Date().toISOString()
+          status: 'completed'
         }
       }));
-
-      // Automatically unsubscribe from completed batches
-      unsubscribeFromBatch(batchId);
-    }
-  });
-
-  // Log event handlers
-  socket.on('batch:log', ({ batchId, log }) => {
-    const callback = subscriptionCallbacks.get(batchId);
-    if (callback) {
-      callback({
-        type: 'log',
-        logType: log.level || 'info',
-        message: log.message,
-        details: log.details
-      });
+    } catch (error) {
+      console.error('Error updating batch completion in Supabase:', error);
     }
   });
 }
 
-export function subscribeToBatch(batchId: string, callback: (data: any) => void) {
+export function subscribeToBatch(batchId: string) {
   if (!socket?.connected) {
     console.warn('WebSocket not connected');
     return;
   }
-  // Always update callback even if already subscribed to ensure latest callback is used
-  subscriptionCallbacks.set(batchId, callback);
-  
-  if (!socket.hasListeners(`batch:${batchId}`)) {
-    socket.emit('subscribe:batch', batchId);
-    console.log(`Subscribed to batch ${batchId}`);
-  }
+  socket.emit('subscribe:batch', batchId);
 }
 
 export function unsubscribeFromBatch(batchId: string) {
   if (!socket?.connected) return;
-  if (subscriptionCallbacks.has(batchId)) {
-    socket.emit('unsubscribe:batch', batchId);
-    subscriptionCallbacks.delete(batchId);
-    console.log(`Unsubscribed from batch ${batchId}`);
-  }
-}
-
-// Initialize socket connection if not already connected
-export function ensureSocketConnection() {
-  if (!socket) {
-    initializeWebSocket();
-  }
-  return socket?.connected || false;
+  socket.emit('unsubscribe:batch', batchId);
 }
 
 // Batch control actions
@@ -190,6 +250,5 @@ export function closeWebSocket() {
   if (socket) {
     socket.close();
     socket = null;
-    subscriptionCallbacks.clear();
   }
 }
