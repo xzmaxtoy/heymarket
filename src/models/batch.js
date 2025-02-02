@@ -5,6 +5,7 @@ import { addHeymarketAuth } from '../middleware/auth.js';
 import { Template, getTemplate } from './template.js';
 import { isDuplicateMessage, recordMessage } from '../utils/messageHistory.js';
 import { employeeList } from '../utils/employeeList.js';
+import { emitBatchUpdate, emitBatchError, emitBatchComplete } from '../websocket/server.js';
 
 const sleep = promisify(setTimeout);
 
@@ -34,6 +35,8 @@ class Batch {
     };
 
     this.status = 'pending';
+    this.isPaused = false;
+    this.currentRecipientIndex = 0;
     this.progress = {
       total: recipients.length,
       pending: recipients.length,
@@ -62,6 +65,9 @@ class Batch {
    * Start batch processing
    */
   async start(auth) {
+    if (this.status === 'completed' || this.status === 'failed') {
+      throw new Error(`Cannot start batch in ${this.status} status`);
+    }
     if (this.options.scheduleTime) {
       const scheduledTime = new Date(this.options.scheduleTime);
       const now = new Date();
@@ -79,10 +85,21 @@ class Batch {
     const estimatedCompletion = new Date(Date.now() + totalTime);
     this.timing.estimated_completion = estimatedCompletion.toISOString();
 
+    // Emit initial processing state
+    emitBatchUpdate(this.id, this.getState());
+
     const startTime = Date.now();
     let successCount = 0;
 
-    for (const recipient of this.recipients) {
+    for (let i = this.currentRecipientIndex; i < this.recipients.length; i++) {
+      if (this.isPaused) {
+        this.status = 'paused';
+        this.currentRecipientIndex = i;
+        emitBatchUpdate(this.id, this.getState());
+        return;
+      }
+
+      const recipient = this.recipients[i];
       this.progress.pending--;
       this.progress.processing++;
 
@@ -277,11 +294,15 @@ class Batch {
       this.metrics.messages_per_second = (this.progress.completed + this.progress.failed) / elapsedSeconds;
       this.metrics.success_rate = (successCount / (this.progress.completed + this.progress.failed)) * 100;
 
+      // Emit progress update
+      emitBatchUpdate(this.id, this.getState());
+
       // Respect priority-based rate limiting
       await sleep(PRIORITY_DELAYS[this.options.priority]);
     }
 
     this.status = 'completed';
+    emitBatchComplete(this.id, this.getState());
   }
 
   /**
@@ -296,6 +317,66 @@ class Batch {
   }
 
   /**
+   * Pause batch processing
+   */
+  async pause() {
+    if (this.status !== 'processing') {
+      throw new Error('Can only pause processing batches');
+    }
+    this.isPaused = true;
+    // Status update will be handled in start() method
+  }
+
+  /**
+   * Resume batch processing
+   */
+  async resume() {
+    if (this.status !== 'paused') {
+      throw new Error('Can only resume paused batches');
+    }
+    this.isPaused = false;
+    this.status = 'processing';
+    emitBatchUpdate(this.id, this.getState());
+    await this.start(this.lastAuth);
+  }
+
+  /**
+   * Retry failed messages in batch
+   */
+  async retry() {
+    if (this.status !== 'completed' && this.status !== 'failed') {
+      throw new Error('Can only retry completed or failed batches');
+    }
+
+    // Collect failed recipients
+    const failedRecipients = this.results
+      .filter(result => result.status === 'failed')
+      .map(result => this.recipients.find(r => r.phoneNumber === result.phoneNumber))
+      .filter(Boolean);
+
+    if (failedRecipients.length === 0) {
+      throw new Error('No failed messages to retry');
+    }
+
+    // Reset progress for retry
+    this.status = 'processing';
+    this.progress.failed = 0;
+    this.progress.pending = failedRecipients.length;
+    this.progress.completed = this.results.filter(r => r.status === 'success').length;
+    this.currentRecipientIndex = 0;
+    this.recipients = failedRecipients;
+
+    // Clear previous errors
+    this.errors = {
+      categories: {},
+      samples: []
+    };
+
+    emitBatchUpdate(this.id, this.getState());
+    await this.start(this.lastAuth);
+  }
+
+  /**
    * Get current batch state
    */
   getState() {
@@ -305,7 +386,8 @@ class Batch {
       progress: this.progress,
       timing: this.timing,
       errors: this.errors,
-      metrics: this.metrics
+      metrics: this.metrics,
+      isPaused: this.isPaused
     };
   }
 
@@ -367,17 +449,23 @@ async function createBatch(templateData, recipients, options, auth) {
   const batch = new Batch(batchId, template, recipients, options);
   batches.set(batchId, batch);
 
-  // Start processing
-  batch.start(auth).catch(error => {
-    console.error('Batch processing error:', error);
-    batch.status = 'failed';
-    batch.errors.categories['system'] = (batch.errors.categories['system'] || 0) + 1;
-    batch.errors.samples.push({
-      error: error.message,
-      category: 'system',
-      timestamp: new Date().toISOString()
+  // Only start processing if autoStart is true
+  if (options.autoStart) {
+    batch.start(auth).catch(error => {
+      console.error('Batch processing error:', error);
+      batch.status = 'failed';
+      batch.errors.categories['system'] = (batch.errors.categories['system'] || 0) + 1;
+      batch.errors.samples.push({
+        error: error.message,
+        category: 'system',
+        timestamp: new Date().toISOString()
+      });
+      emitBatchError(batch.id, {
+        error: error.message,
+        state: batch.getState()
+      });
     });
-  });
+  }
 
   // Clean up old batches after 1 hour
   setTimeout(() => {
