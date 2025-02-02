@@ -110,6 +110,12 @@ export const api = {
 
   delete: <T>(endpoint: string) =>
     apiRequest<T>(endpoint, { method: 'DELETE' }),
+
+  patch: <T>(endpoint: string, data: unknown) =>
+    apiRequest<T>(endpoint, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
 };
 
 export default api;

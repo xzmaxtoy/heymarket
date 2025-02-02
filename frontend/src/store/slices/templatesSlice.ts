@@ -91,7 +91,15 @@ const templatesSlice = createSlice({
       .addCase(updateTemplate.fulfilled, (state, action) => {
         console.log('updateTemplate.fulfilled:', action.payload);
         state.loading = false;
-        // Don't update the list here - let the component trigger a refresh
+        // Update the template in the list
+        const index = state.templates.findIndex(t => t.id === action.payload.id);
+        if (index !== -1) {
+          state.templates[index] = action.payload;
+        }
+        // Update selected template if it's the one being edited
+        if (state.selectedTemplate?.id === action.payload.id) {
+          state.selectedTemplate = action.payload;
+        }
       })
       .addCase(updateTemplate.rejected, (state, action) => {
         console.error('updateTemplate.rejected:', action.error);

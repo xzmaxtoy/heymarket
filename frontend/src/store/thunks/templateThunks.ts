@@ -117,7 +117,7 @@ export const updateTemplate = createAsyncThunk(
         throw new Error(JSON.stringify(errors));
       }
 
-      const response = await api.put<Template>(`/api/templates/${id}`, {
+      const response = await api.patch<Template>(`/api/templates/${id}`, {
         name: template.name,
         content: template.content,
         description: template.description
