@@ -51,3 +51,4 @@ deploy.zip
 dist/
 build/
 cache/messages.json
+backups/
