@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -14,6 +14,7 @@ import { useAppDispatch, useAppSelector } from '@/store';
 import { selectBatchCreation, resetCreation } from '@/store/slices/batchesSlice';
 import { createBatch } from '@/store/thunks/batchThunks';
 import { Customer } from '@/types/customer';
+import { getErrorMessage, withRetry } from '@/utils/errorHandling';
 import { useTemplateList } from '@/features/templates/hooks/useTemplateList';
 import { useTemplatePreview } from '@/features/templates/hooks/useTemplatePreview';
 import { BatchCreationState } from '../types';
@@ -51,7 +52,7 @@ export const BatchCreationDialog: React.FC<BatchCreationDialogProps> = ({
     }
   }, [open, dispatch]);
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     try {
       setIsSubmitting(true);
       setError(null);
@@ -62,19 +63,47 @@ export const BatchCreationDialog: React.FC<BatchCreationDialogProps> = ({
         variables: customVariables,
       };
 
-      await dispatch(createBatch(batchData)).unwrap();
+      await withRetry(async () => {
+        await dispatch(createBatch(batchData)).unwrap();
+      });
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create batch');
+      const errorMessage = getErrorMessage(err);
+      setError(errorMessage);
+      
+      // Show more specific error messages based on error type
+      if (errorMessage.includes('template')) {
+        setError('Template validation failed. Please check your template configuration.');
+      } else if (errorMessage.includes('schedule')) {
+        setError('Invalid schedule time. Please select a future date and time.');
+      } else if (errorMessage.includes('customer')) {
+        setError('Customer data validation failed. Please check selected customers.');
+      } else if (errorMessage.includes('network')) {
+        setError('Network error occurred. Please check your connection and try again.');
+      }
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [creation, selectedCustomers, customVariables, dispatch, onClose]);
+
+  // Validate schedule time
+  const validateSchedule = useCallback(() => {
+    if (creation.scheduledFor) {
+      const scheduleTime = creation.scheduledFor.toDate();
+      const now = new Date();
+      if (scheduleTime <= now) {
+        setError('Schedule time must be in the future');
+        return false;
+      }
+    }
+    return true;
+  }, [creation.scheduledFor]);
 
   const isValid = 
     creation.template &&
     selectedCustomers.length > 0 &&
-    creation.name.trim() !== '';
+    creation.name.trim() !== '' &&
+    validateSchedule();
 
   return (
     <Dialog
@@ -86,14 +115,26 @@ export const BatchCreationDialog: React.FC<BatchCreationDialogProps> = ({
         sx: { minHeight: '80vh' }
       }}
     >
-      <DialogTitle>
-        <Typography variant="h5">Create Batch Message</Typography>
-      </DialogTitle>
+      <DialogTitle>Create Batch Message</DialogTitle>
 
       <DialogContent>
         <Box sx={{ mt: 2 }}>
           {error && (
-            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+            <Alert 
+              severity="error" 
+              sx={{ mb: 2 }} 
+              onClose={() => setError(null)}
+              action={
+                <Button 
+                  color="inherit" 
+                  size="small" 
+                  onClick={handleSubmit}
+                  disabled={isSubmitting}
+                >
+                  RETRY
+                </Button>
+              }
+            >
               {error}
             </Alert>
           )}
