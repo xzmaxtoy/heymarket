@@ -3,6 +3,8 @@ import {
   Box,
   IconButton,
   Tooltip,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 import {
   Cancel as CancelIcon,
@@ -25,6 +27,7 @@ export const BatchActions: React.FC<BatchActionsProps> = ({
 }) => {
   const dispatch = useAppDispatch();
   const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
   const isPending = batch.status === 'pending';
   const isProcessing = batch.status === 'processing';
@@ -37,7 +40,9 @@ export const BatchActions: React.FC<BatchActionsProps> = ({
         onRefresh(batch.id);
       }
     } catch (error) {
-      console.error('Failed to start batch:', error);
+      const message = error instanceof Error ? error.message : 'Failed to start batch';
+      console.error('Failed to start batch:', message);
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -51,7 +56,9 @@ export const BatchActions: React.FC<BatchActionsProps> = ({
         onRefresh(batch.id);
       }
     } catch (error) {
-      console.error('Failed to cancel batch:', error);
+      const message = error instanceof Error ? error.message : 'Failed to cancel batch';
+      console.error('Failed to cancel batch:', message);
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -113,6 +120,22 @@ export const BatchActions: React.FC<BatchActionsProps> = ({
           </IconButton>
         </Tooltip>
       )}
+      {/* Error Snackbar */}
+      <Snackbar 
+        open={!!error} 
+        autoHideDuration={6000} 
+        onClose={() => setError(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={() => setError(null)} 
+          severity="error" 
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {error}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
