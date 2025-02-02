@@ -4,16 +4,25 @@ import { SystemMetrics as SystemMetricsType } from '../types';
 import MetricsCard from './MetricsCard';
 
 interface SystemMetricsProps {
-  metrics: SystemMetricsType;
+  metrics?: SystemMetricsType;
   loading?: boolean;
 }
 
-const SystemMetrics: React.FC<SystemMetricsProps> = ({ metrics, loading = false }) => {
-  const formatPercentage = (value: number) => `${Math.round(value)}%`;
-  const formatNumber = (value: number) => value.toLocaleString();
-  const formatTime = (value: number) => `${value.toFixed(2)}ms`;
+const defaultMetrics: SystemMetricsType = {
+  cpuUsage: 0,
+  memoryUsage: 0,
+  queueSize: 0,
+  activeConnections: 0,
+  avgResponseTime: 0
+};
 
-  const getHealthColor = (value: number, type: 'cpu' | 'memory' | 'queue'): 'success' | 'warning' | 'error' => {
+const SystemMetrics: React.FC<SystemMetricsProps> = ({ metrics = defaultMetrics, loading = false }) => {
+  const formatPercentage = (value?: number) => `${Math.round(value ?? 0)}%`;
+  const formatNumber = (value?: number) => (value ?? 0).toLocaleString();
+  const formatTime = (value?: number) => `${(value ?? 0).toFixed(2)}ms`;
+
+  const getHealthColor = (value: number | undefined, type: 'cpu' | 'memory' | 'queue'): 'success' | 'warning' | 'error' => {
+    if (value === undefined) return 'success';
     switch (type) {
       case 'cpu':
         return value > 90 ? 'error' : value > 70 ? 'warning' : 'success';
