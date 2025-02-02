@@ -28,13 +28,19 @@ const handleError = (error: unknown): string => {
 
 // Create Supabase batch record
 const createBatchRecord = async (batchData: BatchCreationState): Promise<Batch> => {
+  // Filter out customers with no phone number
+  const validCustomers = batchData.customers.filter(customer => customer.phone);
+  if (validCustomers.length === 0) {
+    throw new Error('No valid phone numbers found in selected customers');
+  }
+
   const { data, error } = await supabase
     .from('sms_batches')
     .insert({
       name: batchData.name,
       template_id: batchData.template?.id,
       status: 'pending' as BatchStatus,
-      total_recipients: batchData.customers.length,
+      total_recipients: validCustomers.length,
       completed_count: 0,
       failed_count: 0,
       scheduled_for: batchData.scheduledFor,
@@ -54,19 +60,25 @@ const createBatchLogs = async (batchId: string, batchData: BatchCreationState) =
   const templateContent = batchData.template?.content || '';
   const usedVariables = extractTemplateVariables(templateContent);
 
-  // Create logs with only required variables for each customer
-  const batchLogs = batchData.customers.map(customer => {
-    // Extract only the variables used in template
-    const customerVars = extractRequiredVariables(customer, usedVariables);
-    
-    return {
-      batch_id: batchId,
-      targets: customer.phone,
-      message: templateContent,
-      variables: customerVars,
-      status: 'pending',
-    };
-  });
+  // Create logs with only required variables for valid customers
+  const batchLogs = batchData.customers
+    .filter(customer => customer.phone) // Filter out customers with no phone number
+    .map(customer => {
+      // Extract only the variables used in template
+      const customerVars = extractRequiredVariables(customer, usedVariables);
+      
+      return {
+        batch_id: batchId,
+        targets: customer.phone,
+        message: templateContent,
+        variables: customerVars,
+        status: 'pending',
+      };
+    });
+
+  if (batchLogs.length === 0) {
+    throw new Error('No valid phone numbers found in selected customers');
+  }
 
   const { error } = await supabase
     .from('sms_batch_log')
@@ -155,16 +167,26 @@ export const createBatch = createAsyncThunk(
     try {
       console.log('Creating batch in Supabase:', batchData);
 
-      // Create batch record
-      batchRecord = await createBatchRecord(batchData);
+      // Filter out customers with no phone number
+      const validCustomers = batchData.customers.filter(customer => customer.phone);
+      if (validCustomers.length === 0) {
+        throw new Error('No valid phone numbers found in selected customers');
+      }
+
+      // Create batch record with valid customers only
+      const batchDataWithValidCustomers = {
+        ...batchData,
+        customers: validCustomers
+      };
+      batchRecord = await createBatchRecord(batchDataWithValidCustomers);
       console.log('Batch created in Supabase:', batchRecord);
 
       // Extract variables used in template
       const templateContent = batchData.template?.content || '';
       const usedVariables = extractTemplateVariables(templateContent);
 
-      // Create batch logs and prepare recipient data
-      const recipients = batchData.customers.map(customer => {
+      // Create batch logs and prepare recipient data for valid customers only
+      const recipients = validCustomers.map(customer => {
         // Extract only the variables used in template
         const customerVars = extractRequiredVariables(customer, usedVariables);
         return {
@@ -174,7 +196,7 @@ export const createBatch = createAsyncThunk(
       });
 
       // Create batch logs
-      await createBatchLogs(batchRecord.id, batchData);
+      await createBatchLogs(batchRecord.id, batchDataWithValidCustomers);
       console.log('Batch logs created in Supabase');
 
       // Create batch in backend

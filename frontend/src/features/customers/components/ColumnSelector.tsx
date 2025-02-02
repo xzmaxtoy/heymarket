@@ -9,6 +9,8 @@ import {
   Divider,
 } from '@mui/material';
 import { ALL_COLUMNS } from '@/types/customer';
+import { useAppDispatch } from '@/store/hooks';
+import { updateColumnVisibility } from '@/store/slices/customersSlice';
 
 interface ColumnSelectorProps {
   open: boolean;
@@ -23,6 +25,19 @@ export const ColumnSelector: React.FC<ColumnSelectorProps> = ({
   selectedColumns,
   onColumnToggle,
 }) => {
+  const dispatch = useAppDispatch();
+
+  const handleColumnToggle = (field: string) => {
+    const newColumns = new Set(selectedColumns);
+    if (newColumns.has(field)) {
+      if (newColumns.size > 1) {
+        newColumns.delete(field);
+      }
+    } else {
+      newColumns.add(field);
+    }
+    dispatch(updateColumnVisibility(Array.from(newColumns)));
+  };
   // Group columns by type for better organization
   const columnGroups = {
     identification: ['id', 'cus_id', 'code', 'name'],
@@ -34,34 +49,67 @@ export const ColumnSelector: React.FC<ColumnSelectorProps> = ({
     other: ['remarks', 'ref_cus_id', 'staff_id', 'card_store_id', 'store_active']
   };
 
-  const renderColumnGroup = (title: string, fields: string[]) => (
-    <Box key={title} sx={{ mb: 2 }}>
-      <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-        {title}
-      </Typography>
-      <FormGroup>
-        {fields.map((field) => {
-          const column = ALL_COLUMNS.find(col => col.field === field);
-          if (!column) return null;
-          
-          return (
-            <FormControlLabel
-              key={field}
-              control={
-                <Checkbox
-                  checked={selectedColumns.has(field)}
-                  onChange={() => onColumnToggle(field)}
-                  disabled={selectedColumns.size === 1 && selectedColumns.has(field)}
-                />
-              }
-              label={column.headerName}
-            />
-          );
-        })}
-      </FormGroup>
-      <Divider sx={{ mt: 1 }} />
-    </Box>
-  );
+  // Ensure all columns in groups exist in ALL_COLUMNS
+  const validColumnGroups = Object.entries(columnGroups).reduce((acc, [key, fields]) => {
+    const validFields = fields.filter(field => 
+      ALL_COLUMNS.some(col => col.field === field)
+    );
+    if (validFields.length > 0) {
+      acc[key] = validFields;
+    }
+    return acc;
+  }, {} as Record<string, string[]>);
+
+  // Group titles for display
+  const groupTitles: Record<string, string> = {
+    identification: 'Identification',
+    contact: 'Contact Information',
+    dates: 'Important Dates',
+    birthday: 'Birthday',
+    options: 'Options',
+    metrics: 'Metrics',
+    other: 'Other Information'
+  };
+
+  const renderColumnGroup = (groupKey: string, fields: string[]) => {
+    const title = groupTitles[groupKey] || groupKey;
+    return (
+      <Box key={groupKey} sx={{ mb: 2 }}>
+        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+          {title}
+        </Typography>
+        <FormGroup>
+          {fields.map((field) => {
+            const column = ALL_COLUMNS.find(col => col.field === field);
+            if (!column) return null;
+            
+            const isDisabled = selectedColumns.size === 1 && selectedColumns.has(field);
+            
+            return (
+              <FormControlLabel
+                key={field}
+                control={
+                  <Checkbox
+                    checked={selectedColumns.has(field)}
+                    onChange={() => handleColumnToggle(field)}
+                    disabled={isDisabled}
+                  />
+                }
+                label={column.headerName}
+                sx={{
+                  opacity: isDisabled ? 0.7 : 1,
+                  '& .MuiFormControlLabel-label': {
+                    color: isDisabled ? 'text.disabled' : 'text.primary'
+                  }
+                }}
+              />
+            );
+          })}
+        </FormGroup>
+        <Divider sx={{ mt: 1 }} />
+      </Box>
+    );
+  };
 
   return (
     <Drawer
@@ -78,13 +126,9 @@ export const ColumnSelector: React.FC<ColumnSelectorProps> = ({
         </Typography>
         <Divider sx={{ mb: 2 }} />
         
-        {renderColumnGroup('Identification', columnGroups.identification)}
-        {renderColumnGroup('Contact Information', columnGroups.contact)}
-        {renderColumnGroup('Important Dates', columnGroups.dates)}
-        {renderColumnGroup('Birthday', columnGroups.birthday)}
-        {renderColumnGroup('Options', columnGroups.options)}
-        {renderColumnGroup('Metrics', columnGroups.metrics)}
-        {renderColumnGroup('Other Information', columnGroups.other)}
+        {Object.entries(validColumnGroups).map(([key, fields]) => 
+          renderColumnGroup(key, fields)
+        )}
       </Box>
     </Drawer>
   );

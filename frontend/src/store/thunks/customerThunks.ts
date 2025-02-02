@@ -134,13 +134,18 @@ export const fetchCustomers = createAsyncThunk(
   }
 );
 
+interface SelectAllFilteredResult {
+  ids: string[];
+  customers: Customer[];
+}
+
 export const selectAllFilteredCustomers = createAsyncThunk(
   'customers/selectAllFiltered',
-  async ({ filters, searchText }: Omit<FetchCustomersParams, 'page' | 'pageSize'>) => {
+  async ({ filters, searchText }: Omit<FetchCustomersParams, 'page' | 'pageSize'>): Promise<SelectAllFilteredResult> => {
     try {
       let query = supabase
         .from('customer')
-        .select('id')
+        .select('*')
         .order('date_active', { ascending: false });
 
       // Apply filters
@@ -160,7 +165,11 @@ export const selectAllFilteredCustomers = createAsyncThunk(
         throw error;
       }
 
-      return data.map(customer => customer.id);
+      const customers = data as Customer[];
+      return {
+        ids: customers.map(customer => customer.id),
+        customers
+      };
     } catch (error) {
       console.error('Error selecting all filtered customers:', error);
       throw error;

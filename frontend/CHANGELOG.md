@@ -2,7 +2,55 @@
 
 All notable changes to the Batch SMS Frontend will be documented in this file.
 
-## [Unreleased]
+## [1.1.0] - 2025-02-03
+
+### Added
+- Optimized Batch Creation System
+  * Backend-first approach with Supabase direct loading
+  * Improved message preview system
+  * Batch creation documentation
+  * Reduced network payload
+  * Better error handling and validation
+
+- Notifications System
+  * Toast notifications for all operations
+  * Success/error/warning/info notifications
+  * Auto-dismiss functionality with configurable duration
+  * Centralized notification management
+  * Consistent notification styling
+  * Operation-specific notifications
+  * Retry attempt notifications
+
+### Changed
+- Enhanced Filter System
+  * Added all customer fields to filters
+  * Added birthday fields (bir_dd, bir_mm, bir_yy)
+  * Added option fields (option1, option2, option3)
+  * Added identification fields (id, cus_id, code)
+  * Synchronized field labels with column headers
+  * Improved field type handling
+  * Better field organization
+
+- Improved Settings Persistence
+  * Added retry logic with 3 attempts for failed operations
+  * Better error handling with automatic fallbacks
+  * Proper validation for settings data
+  * Success/error notifications for all operations
+  * Automatic fallback to defaults when needed
+  * Improved loading state management
+  * Better error recovery
+
+### Fixed
+- Filter field availability now includes all customer fields
+- Settings persistence reliability with retry mechanism
+- Column visibility loading and persistence
+- Filter state persistence and validation
+- Settings synchronization between components
+- Error handling for failed operations
+- Default fallback behavior
+- "Select All" functionality now properly includes all filtered customers
+- Batch creation handling of customers with missing phone numbers
+- Validation for required phone numbers in batch creation
 
 ### Upcoming
 - Performance Optimization Phase

@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import { Box, Paper, Button } from '@mui/material';
 import { Send as SendIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/store';
-import { supabase } from '@/services/supabase';
 import {
   selectSelectedCustomers,
   selectActiveFilters,
@@ -12,6 +11,7 @@ import {
   selectCustomersError,
   selectCustomersPagination,
   selectCustomersData,
+  selectSelectedCustomersData,
   setSelectedCustomers,
   setActiveFilters,
   addSavedFilter,
@@ -36,6 +36,7 @@ export const CustomerSelection: React.FC = () => {
   
   // Redux state
   const selectedCustomers = useAppSelector(selectSelectedCustomers);
+  const selectedCustomersData = useAppSelector(selectSelectedCustomersData);
   const activeFilters = useAppSelector(selectActiveFilters);
   const savedFilters = useAppSelector(selectSavedFilters);
   const visibleColumns = useAppSelector(selectVisibleColumns);
@@ -56,15 +57,11 @@ export const CustomerSelection: React.FC = () => {
       // Clear existing filters
       dispatch(clearSavedFilters());
       
-      // Load column visibility settings
-      await dispatch(loadColumnVisibility());
-      // If no saved columns, use defaults
-      if (visibleColumns.size === 0) {
-        dispatch(setVisibleColumns(DEFAULT_COLUMNS.map(col => col.field)));
-      }
-      
-      // Load saved filters
-      await dispatch(loadSavedFilters());
+      // Load column visibility settings and saved filters
+      await Promise.all([
+        dispatch(loadColumnVisibility()),
+        dispatch(loadSavedFilters())
+      ]);
     };
 
     loadSettings();
@@ -151,29 +148,6 @@ export const CustomerSelection: React.FC = () => {
     }));
   };
 
-  // Fetch full customer data for selected IDs
-  const [fullCustomerData, setFullCustomerData] = React.useState<Customer[]>([]);
-
-  useEffect(() => {
-    const fetchSelectedCustomers = async () => {
-      if (batchDialogOpen && selectedCustomers.length > 0) {
-        try {
-          const { data, error } = await supabase
-            .from('customer')
-            .select('*')
-            .in('id', selectedCustomers);
-
-          if (error) throw error;
-          setFullCustomerData(data || []);
-        } catch (error) {
-          console.error('Error fetching selected customers:', error);
-        }
-      }
-    };
-
-    fetchSelectedCustomers();
-  }, [batchDialogOpen, selectedCustomers]);
-
   return (
     <Box sx={{ width: '100%', height: '100%' }}>
       <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
@@ -229,11 +203,8 @@ export const CustomerSelection: React.FC = () => {
 
       <BatchCreationDialog
         open={batchDialogOpen}
-        onClose={() => {
-          setBatchDialogOpen(false);
-          setFullCustomerData([]);
-        }}
-        selectedCustomers={fullCustomerData}
+        onClose={() => setBatchDialogOpen(false)}
+        selectedCustomers={selectedCustomersData}
       />
     </Box>
   );

@@ -12,6 +12,7 @@ import { AppDispatch } from '@/store';
 
 interface CustomersState {
   selectedCustomers: string[];
+  selectedCustomersData: Customer[];
   activeFilters: FilterGroup[];
   savedFilters: SavedFilter[];
   visibleColumns: Set<string>;
@@ -25,6 +26,7 @@ interface CustomersState {
 
 const initialState: CustomersState = {
   selectedCustomers: [],
+  selectedCustomersData: [],
   activeFilters: [],
   savedFilters: [],
   visibleColumns: new Set(),
@@ -43,6 +45,9 @@ const customersSlice = createSlice({
     setSelectedCustomers: (state, action: PayloadAction<string[]>) => {
       state.selectedCustomers = action.payload;
     },
+    setSelectedCustomersData: (state, action: PayloadAction<Customer[]>) => {
+      state.selectedCustomersData = action.payload;
+    },
     addSelectedCustomers: (state, action: PayloadAction<string[]>) => {
       const newSelected = new Set([...state.selectedCustomers, ...action.payload]);
       state.selectedCustomers = Array.from(newSelected);
@@ -53,6 +58,7 @@ const customersSlice = createSlice({
     },
     clearSelectedCustomers: (state) => {
       state.selectedCustomers = [];
+      state.selectedCustomersData = [];
     },
     setActiveFilters: (state, action: PayloadAction<FilterGroup[]>) => {
       state.activeFilters = action.payload;
@@ -68,8 +74,6 @@ const customersSlice = createSlice({
     },
     setVisibleColumns: (state, action: PayloadAction<string[]>) => {
       state.visibleColumns = new Set(action.payload);
-      // Persist to Supabase
-      saveColumnVisibility(action.payload);
     },
     setPageSize: (state, action: PayloadAction<number>) => {
       state.pageSize = action.payload;
@@ -101,7 +105,8 @@ const customersSlice = createSlice({
       })
       .addCase(selectAllFilteredCustomers.fulfilled, (state, action) => {
         state.loading = false;
-        state.selectedCustomers = action.payload;
+        state.selectedCustomers = action.payload.ids;
+        state.selectedCustomersData = action.payload.customers;
       })
       .addCase(selectAllFilteredCustomers.rejected, (state, action) => {
         state.loading = false;
@@ -141,6 +146,7 @@ const customersSlice = createSlice({
 // Action creators
 export const {
   setSelectedCustomers,
+  setSelectedCustomersData,
   addSelectedCustomers,
   removeSelectedCustomers,
   clearSelectedCustomers,
@@ -152,6 +158,12 @@ export const {
   setPageSize,
   setCurrentPage,
 } = customersSlice.actions;
+
+// Thunk action to update and persist column visibility
+export const updateColumnVisibility = (columns: string[]) => async (dispatch: AppDispatch) => {
+  dispatch(setVisibleColumns(columns));
+  await dispatch(saveColumnVisibility(columns));
+};
 
 // Thunk action creators
 export const saveFilter = (filter: SavedFilter) => async (dispatch: AppDispatch, getState: () => { customers: CustomersState }) => {
@@ -171,6 +183,9 @@ export const deleteFilter = (filterId: string) => async (dispatch: AppDispatch, 
 // Selectors
 export const selectSelectedCustomers = (state: { customers: CustomersState }) => 
   state.customers.selectedCustomers;
+
+export const selectSelectedCustomersData = (state: { customers: CustomersState }) => 
+  state.customers.selectedCustomersData;
 
 export const selectActiveFilters = (state: { customers: CustomersState }) => 
   state.customers.activeFilters;
