@@ -686,4 +686,46 @@ router.post('/:batchId/resume', (req, res) => {
   }
 });
 
+// Cancel batch processing
+router.post('/:batchId/cancel', async (req, res) => {
+  try {
+    const { batchId } = req.params;
+    console.log('Cancelling batch:', batchId);
+
+    const batch = getBatch(batchId);
+    if (!batch) {
+      return res.status(404).json({
+        success: false,
+        error: 'Batch not found',
+        message: 'Invalid batch ID or status expired'
+      });
+    }
+
+    await batch.cancel();
+
+    // Log cancel request
+    console.log('Batch cancelled:', {
+      timestamp: new Date().toISOString(),
+      batchId,
+      requestId: req.headers['x-request-id'] || 'no-request-id',
+      auth: {
+        hasApiKey: !!req.apiKey,
+        keyPrefix: req.apiKey ? req.apiKey.substring(0, 8) + '...' : 'none'
+      }
+    });
+
+    res.json({
+      success: true,
+      data: batch.getState()
+    });
+  } catch (error) {
+    console.error('Error cancelling batch:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to cancel batch',
+      message: error.message
+    });
+  }
+});
+
 export default router;

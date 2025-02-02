@@ -260,27 +260,18 @@ export const cancelBatch = createAsyncThunk(
     try {
       console.log('Cancelling batch:', batchId);
 
-      const { data, error } = await supabase
-        .from('sms_batches')
-        .update({ status: 'cancelled' })
-        .eq('id', batchId)
-        .select()
-        .single();
+      // Call backend cancel endpoint
+      const response = await api.post<{ success: boolean; data: Batch }>(
+        `/api/batch/${batchId}/cancel`,
+        {}
+      );
 
-      if (error) throw error;
-      if (!data) throw new Error('Failed to cancel batch');
+      if (!response.success) {
+        throw new Error('Failed to cancel batch');
+      }
 
-      // Update pending batch logs to cancelled
-      const { error: logsError } = await supabase
-        .from('sms_batch_log')
-        .update({ status: 'cancelled' })
-        .eq('batch_id', batchId)
-        .eq('status', 'pending');
-
-      if (logsError) throw logsError;
-
-      console.log('Batch cancelled:', data);
-      return data as Batch;
+      console.log('Batch cancelled:', response.data);
+      return response.data;
     } catch (error) {
       console.error('Error cancelling batch:', error);
       throw new Error(handleError(error));

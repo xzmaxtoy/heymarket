@@ -341,6 +341,38 @@ class Batch {
   }
 
   /**
+   * Cancel batch processing
+   */
+  async cancel() {
+    // Only allow cancelling pending or processing batches
+    if (this.status !== 'pending' && this.status !== 'processing') {
+      throw new Error(`Cannot cancel batch in ${this.status} status`);
+    }
+
+    // Update status and mark remaining messages as cancelled
+    this.status = 'cancelled';
+    
+    // For any pending recipients, add them to results as cancelled
+    const remainingRecipients = this.recipients.slice(this.currentRecipientIndex);
+    remainingRecipients.forEach(recipient => {
+      this.results.push({
+        phoneNumber: recipient.phoneNumber,
+        status: 'cancelled',
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    // Update progress counts
+    const cancelledCount = remainingRecipients.length;
+    this.progress.pending = 0;
+    this.progress.processing = 0;
+    this.progress.failed += cancelledCount; // Count cancelled as failed
+
+    // Emit final state
+    emitBatchUpdate(this.id, this.getState());
+  }
+
+  /**
    * Retry failed messages in batch
    */
   async retry() {
