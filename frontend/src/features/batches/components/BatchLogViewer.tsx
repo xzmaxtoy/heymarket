@@ -39,12 +39,26 @@ export const BatchLogViewer: React.FC<BatchLogViewerProps> = ({ batch }) => {
     // Subscribe to batch updates
     const handleUpdate = (data: any) => {
       if (data.type === 'log') {
-        setLogs(prev => [...prev, {
-          timestamp: new Date().toISOString(),
-          type: data.logType || 'info',
-          message: data.message,
-          details: data.details
-        }]);
+        setLogs(prev => {
+          const newLog = {
+            timestamp: new Date().toISOString(),
+            type: data.logType || 'info',
+            message: data.message,
+            details: data.details
+          };
+
+          // Check if this is a duplicate log (same message within 1 second)
+          const isDuplicate = prev.some(log => 
+            log.message === newLog.message && 
+            Math.abs(new Date(log.timestamp).getTime() - new Date(newLog.timestamp).getTime()) < 1000
+          );
+
+          if (isDuplicate) {
+            return prev;
+          }
+
+          return [...prev, newLog];
+        });
       }
     };
 

@@ -46,12 +46,16 @@ export function initializeWebSocket() {
   socket.on('batch:state', ({ batchId, state }) => {
     const callback = subscriptionCallbacks.get(batchId);
     if (callback) {
-      callback({
-        type: 'log',
-        logType: 'info',
-        message: `Batch state updated: ${state.status}`,
-        details: state
-      });
+      // Only emit log if status has changed
+      const currentBatch = store.getState().batches.items.find(b => b.id === batchId);
+      if (state.status !== currentBatch?.status) {
+        callback({
+          type: 'log',
+          logType: 'info',
+          message: `Batch state updated: ${state.status}`,
+          details: state
+        });
+      }
 
       store.dispatch(updateBatch({ 
         id: batchId, 
@@ -131,9 +135,11 @@ export function subscribeToBatch(batchId: string, callback: (data: any) => void)
     console.warn('WebSocket not connected');
     return;
   }
-  if (!subscriptionCallbacks.has(batchId)) {
+  // Always update callback even if already subscribed to ensure latest callback is used
+  subscriptionCallbacks.set(batchId, callback);
+  
+  if (!socket.hasListeners(`batch:${batchId}`)) {
     socket.emit('subscribe:batch', batchId);
-    subscriptionCallbacks.set(batchId, callback);
     console.log(`Subscribed to batch ${batchId}`);
   }
 }
