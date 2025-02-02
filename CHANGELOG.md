@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.0] - 2025-02-02
+
+### Added
+- Batch control actions (pause/resume/retry)
+- Real-time batch status updates via WebSocket
+- Enhanced batch state management
+- Progress tracking for paused batches
+- Failed message retry functionality
+
+### Technical Details
+- Added batch control methods in src/models/batch.js
+- Enhanced WebSocket server with batch control events
+- Added frontend WebSocket service for batch control
+- Implemented state persistence for paused batches
+- Added error handling for batch control operations
+- Updated batch progress tracking for better accuracy
+
 ## [2.1.1] - 2025-01-30
 
 ### Fixed

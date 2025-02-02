@@ -35,6 +35,55 @@ export function initWebSocket(server) {
       socket.leave(`batch:${batchId}`);
     });
 
+    // Handle batch control actions
+    socket.on('batch:pause', async (batchId) => {
+      console.log(`Pausing batch ${batchId}`);
+      const batch = batches.get(batchId);
+      if (batch) {
+        try {
+          await batch.pause();
+          emitBatchUpdate(batchId, batch.getState());
+        } catch (error) {
+          emitBatchError(batchId, {
+            message: 'Failed to pause batch',
+            details: error.message
+          });
+        }
+      }
+    });
+
+    socket.on('batch:resume', async (batchId) => {
+      console.log(`Resuming batch ${batchId}`);
+      const batch = batches.get(batchId);
+      if (batch) {
+        try {
+          await batch.resume();
+          emitBatchUpdate(batchId, batch.getState());
+        } catch (error) {
+          emitBatchError(batchId, {
+            message: 'Failed to resume batch',
+            details: error.message
+          });
+        }
+      }
+    });
+
+    socket.on('batch:retry', async (batchId) => {
+      console.log(`Retrying batch ${batchId}`);
+      const batch = batches.get(batchId);
+      if (batch) {
+        try {
+          await batch.retry();
+          emitBatchUpdate(batchId, batch.getState());
+        } catch (error) {
+          emitBatchError(batchId, {
+            message: 'Failed to retry batch',
+            details: error.message
+          });
+        }
+      }
+    });
+
     // Handle disconnection
     socket.on('disconnect', () => {
       console.log('Client disconnected:', socket.id);

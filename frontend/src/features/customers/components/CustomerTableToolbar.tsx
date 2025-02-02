@@ -18,7 +18,6 @@ import {
 } from '@mui/icons-material';
 import { GridToolbarContainer, GridToolbarExport } from '@mui/x-data-grid';
 import { Filter, FilterGroup, SavedFilter } from '../filters/types';
-import { FilterChips } from './FilterChips';
 import FilterDialog from '../filters/FilterDialog';
 import { useAppDispatch } from '@/store';
 import { loadSavedFilters } from '@/store/thunks/settingsThunks';
@@ -29,7 +28,6 @@ interface CustomerTableToolbarProps {
   onSearchChange: (value: string) => void;
   activeFilters: FilterGroup[];
   onFiltersChange: (filter: Filter) => void;
-  onClearFilters: () => void;
   savedFilters: SavedFilter[];
   onSaveFilter: (name: string, filter: Filter) => void;
   onDeleteFilter: (filterId: string) => void;
@@ -44,7 +42,6 @@ export const CustomerTableToolbar: React.FC<CustomerTableToolbarProps> = ({
   onSearchChange,
   activeFilters,
   onFiltersChange,
-  onClearFilters,
   savedFilters,
   onSaveFilter,
   onDeleteFilter,
@@ -83,17 +80,7 @@ export const CustomerTableToolbar: React.FC<CustomerTableToolbarProps> = ({
 
   return (
     <GridToolbarContainer>
-      <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%', p: 1 }}>
-        <FilterChips
-          savedFilters={savedFilters}
-          activeFilter={activeFilters.length > 0 ? {
-            conditions: activeFilters[0].conditions,
-            operator: activeFilters[0].operator
-          } : null}
-          onApplyFilter={onFiltersChange}
-          onClearFilter={onClearFilters}
-        />
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%', p: 1 }}>
         <TextField
           size="small"
           variant="outlined"
@@ -157,7 +144,6 @@ export const CustomerTableToolbar: React.FC<CustomerTableToolbarProps> = ({
         </Tooltip>
 
         <GridToolbarExport />
-        </Box>
       </Box>
 
       <FilterDialog

@@ -80,6 +80,31 @@ export function unsubscribeFromBatch(batchId: string) {
   socket.emit('unsubscribe:batch', batchId);
 }
 
+// Batch control actions
+export function pauseBatch(batchId: string) {
+  if (!socket?.connected) {
+    console.warn('WebSocket not connected');
+    return;
+  }
+  socket.emit('batch:pause', batchId);
+}
+
+export function resumeBatch(batchId: string) {
+  if (!socket?.connected) {
+    console.warn('WebSocket not connected');
+    return;
+  }
+  socket.emit('batch:resume', batchId);
+}
+
+export function retryBatch(batchId: string) {
+  if (!socket?.connected) {
+    console.warn('WebSocket not connected');
+    return;
+  }
+  socket.emit('batch:retry', batchId);
+}
+
 export function closeWebSocket() {
   if (socket) {
     socket.close();

@@ -35,6 +35,8 @@ class Batch {
     };
 
     this.status = 'pending';
+    this.isPaused = false;
+    this.currentRecipientIndex = 0;
     this.progress = {
       total: recipients.length,
       pending: recipients.length,
@@ -63,6 +65,9 @@ class Batch {
    * Start batch processing
    */
   async start(auth) {
+    if (this.status === 'completed' || this.status === 'failed') {
+      throw new Error(`Cannot start batch in ${this.status} status`);
+    }
     if (this.options.scheduleTime) {
       const scheduledTime = new Date(this.options.scheduleTime);
       const now = new Date();
@@ -86,7 +91,15 @@ class Batch {
     const startTime = Date.now();
     let successCount = 0;
 
-    for (const recipient of this.recipients) {
+    for (let i = this.currentRecipientIndex; i < this.recipients.length; i++) {
+      if (this.isPaused) {
+        this.status = 'paused';
+        this.currentRecipientIndex = i;
+        emitBatchUpdate(this.id, this.getState());
+        return;
+      }
+
+      const recipient = this.recipients[i];
       this.progress.pending--;
       this.progress.processing++;
 
@@ -304,6 +317,66 @@ class Batch {
   }
 
   /**
+   * Pause batch processing
+   */
+  async pause() {
+    if (this.status !== 'processing') {
+      throw new Error('Can only pause processing batches');
+    }
+    this.isPaused = true;
+    // Status update will be handled in start() method
+  }
+
+  /**
+   * Resume batch processing
+   */
+  async resume() {
+    if (this.status !== 'paused') {
+      throw new Error('Can only resume paused batches');
+    }
+    this.isPaused = false;
+    this.status = 'processing';
+    emitBatchUpdate(this.id, this.getState());
+    await this.start(this.lastAuth);
+  }
+
+  /**
+   * Retry failed messages in batch
+   */
+  async retry() {
+    if (this.status !== 'completed' && this.status !== 'failed') {
+      throw new Error('Can only retry completed or failed batches');
+    }
+
+    // Collect failed recipients
+    const failedRecipients = this.results
+      .filter(result => result.status === 'failed')
+      .map(result => this.recipients.find(r => r.phoneNumber === result.phoneNumber))
+      .filter(Boolean);
+
+    if (failedRecipients.length === 0) {
+      throw new Error('No failed messages to retry');
+    }
+
+    // Reset progress for retry
+    this.status = 'processing';
+    this.progress.failed = 0;
+    this.progress.pending = failedRecipients.length;
+    this.progress.completed = this.results.filter(r => r.status === 'success').length;
+    this.currentRecipientIndex = 0;
+    this.recipients = failedRecipients;
+
+    // Clear previous errors
+    this.errors = {
+      categories: {},
+      samples: []
+    };
+
+    emitBatchUpdate(this.id, this.getState());
+    await this.start(this.lastAuth);
+  }
+
+  /**
    * Get current batch state
    */
   getState() {
@@ -313,7 +386,8 @@ class Batch {
       progress: this.progress,
       timing: this.timing,
       errors: this.errors,
-      metrics: this.metrics
+      metrics: this.metrics,
+      isPaused: this.isPaused
     };
   }
 

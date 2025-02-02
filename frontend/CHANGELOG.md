@@ -5,6 +5,15 @@ All notable changes to the Batch SMS Frontend will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Batch Control Actions
+  * Pause/Resume functionality for running batches
+  * Retry capability for failed messages
+  * Real-time status updates during control operations
+  * Progress persistence for paused batches
+  * Error handling and recovery for control actions
+  * State management for batch lifecycle
+  * WebSocket integration for control operations
+
 - Real-time Batch Updates
   * WebSocket integration for live status updates
   * Automatic batch status synchronization
