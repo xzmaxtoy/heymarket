@@ -2,7 +2,7 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { RootState } from '@/store';
 import { Template } from '@/features/templates/types';
 import { Batch, BatchFilter, BatchStats, BatchPagination } from '@/features/batches/types';
-import dayjs, { Dayjs } from 'dayjs';
+import dayjs from 'dayjs';
 
 interface BatchesState {
   items: Batch[];
@@ -15,7 +15,7 @@ interface BatchesState {
   creation: {
     name: string;
     template: Template | null;
-    scheduledFor: Dayjs | null;
+    scheduledFor: string | null;  // ISO string format
   };
 }
 
@@ -94,7 +94,7 @@ const batchesSlice = createSlice({
     setTemplate: (state, action: PayloadAction<Template | null>) => {
       state.creation.template = action.payload;
     },
-    setScheduledFor: (state, action: PayloadAction<Dayjs | null>) => {
+    setScheduledFor: (state, action: PayloadAction<string | null>) => {
       state.creation.scheduledFor = action.payload;
     },
     resetCreation: (state) => {

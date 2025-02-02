@@ -11,7 +11,7 @@ import {
   Stack,
 } from '@mui/material';
 import { DateTimePicker } from '@mui/x-date-pickers';
-import { Dayjs } from 'dayjs';
+import dayjs from 'dayjs';
 import { useAppDispatch } from '@/store';
 import { Template } from '@/features/templates/types';
 import { Customer } from '@/types/customer';
@@ -24,7 +24,7 @@ import {
 interface BatchConfigurationPanelProps {
   name: string;
   selectedTemplate: Template | null;
-  scheduledFor: Dayjs | null;
+  scheduledFor: string | null;
   templates: Template[];
   selectedCustomers: Customer[];
 }
@@ -84,8 +84,17 @@ export const BatchConfigurationPanel: React.FC<BatchConfigurationPanelProps> = (
       {/* Schedule */}
       <DateTimePicker
         label="Schedule For (Optional)"
-        value={scheduledFor}
-        onChange={(date) => dispatch(setScheduledFor(date))}
+        value={scheduledFor ? dayjs(scheduledFor) : null}
+        onChange={(newDate) => {
+          if (!newDate) {
+            dispatch(setScheduledFor(null));
+          } else {
+            const validDate = dayjs(newDate);
+            if (validDate.isValid()) {
+              dispatch(setScheduledFor(validDate.toISOString()));
+            }
+          }
+        }}
         slotProps={{
           textField: {
             fullWidth: true,
