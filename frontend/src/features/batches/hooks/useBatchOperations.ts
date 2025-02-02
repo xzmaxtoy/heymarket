@@ -5,7 +5,12 @@ import {
   BatchCreationState, 
   BatchStatus,
 } from '../types';
+import { Customer } from '@/types/customer';
 import { updateBatch } from '@/store/slices/batchesSlice';
+
+// Valid customer properties that can be used in variables
+const VALID_CUSTOMER_PROPS = ['id', 'name', 'phone', 'email', 'city', 'address'] as const;
+type ValidCustomerProp = typeof VALID_CUSTOMER_PROPS[number];
 
 interface BatchResponseData {
   batchId: string;
@@ -30,17 +35,34 @@ export const useBatchOperations = () => {
       // Create batch with autoStart: false
       const response = await api.post<ApiResponse>('/api/batch', {
         text: batchData.template?.content,
-        recipients: batchData.customers.map(customer => ({
-          phoneNumber: customer.phone,
-          variables: {
-            ...batchData.variables,
-            customer: {
-              id: customer.id,
-              name: customer.name,
-              phone: customer.phone,
+        recipients: batchData.customers.map(customer => {
+          // Generate customer-specific variables
+          const customerVariables = Object.entries(batchData.variables).reduce((acc, [key, value]) => {
+            // Replace any {{customer.xxx}} variables in the value
+            const processedValue = typeof value === 'string' 
+              ? value.replace(/\{\{customer\.(.*?)\}\}/g, (_, prop) => {
+                  // Only allow specific customer properties
+                  if (VALID_CUSTOMER_PROPS.includes(prop as ValidCustomerProp)) {
+                    return customer[prop as ValidCustomerProp]?.toString() || '';
+                  }
+                  return '';
+                })
+              : value;
+            return { ...acc, [key]: processedValue };
+          }, {});
+
+          return {
+            phoneNumber: customer.phone,
+            variables: {
+              ...customerVariables,
+              customer: {
+                id: customer.id,
+                name: customer.name,
+                phone: customer.phone,
+              },
             },
-          },
-        })),
+          };
+        }),
         options: {
           scheduleTime: batchData.scheduledFor,
           priority: 'normal',
