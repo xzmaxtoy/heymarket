@@ -115,8 +115,12 @@ frontend/
 
 - [API Documentation](api-docs.yaml)
 - [Frontend Architecture](FRONTEND_ARCHITECTURE.md)
-- [Changelog](CHANGELOG.md)
+- [Version Management](docs/VERSIONING.md)
 - [Contributing Guidelines](CONTRIBUTING.md)
+
+## Changelogs
+- [Backend Changelog](CHANGELOG.md)
+- [Frontend Changelog](frontend/CHANGELOG.md)
 
 ## Latest Updates (v2.2.2)
 
