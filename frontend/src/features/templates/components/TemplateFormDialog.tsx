@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -12,6 +12,7 @@ import {
   Grid,
 } from '@mui/material';
 import { Template } from '../types';
+import { getErrorMessage, withRetry } from '@/utils/errorHandling';
 import { useTemplateForm } from '../hooks/useTemplateForm';
 import VariableSelector from './VariableSelector';
 
@@ -47,14 +48,60 @@ export const TemplateFormDialog: React.FC<TemplateFormDialogProps> = ({
     onSuccess,
   });
 
-  const handleSave = async () => {
-    const success = await handleSubmit();
-    if (success) {
-      onClose();
+  // Validate variable syntax
+  const validateVariables = useCallback((content: string) => {
+    const variableRegex = /{{([^{}]+)}}/g;
+    const matches = content.match(variableRegex) || [];
+    const uniqueVariables = new Set(matches.map(match => match.slice(2, -2).trim()));
+    
+    // Check for malformed variables
+    const malformedRegex = /{{[^}]*}(?!})|(?<!{){[^}]*}}/g;
+    if (malformedRegex.test(content)) {
+      errors.content = 'Invalid variable syntax. Please check your curly braces.';
+      return false;
     }
-  };
 
-  const handleVariableSelect = (variable: string) => {
+    // Check if all variables are valid
+    for (const variable of uniqueVariables) {
+      if (!variables.includes(variable)) {
+        errors.content = `Unknown variable: ${variable}`;
+        return false;
+      }
+    }
+
+    return true;
+  }, [variables, errors]);
+
+  const handleSave = useCallback(async () => {
+    try {
+      if (!validateVariables(content)) {
+        return;
+      }
+
+      const success = await withRetry(async () => {
+        return await handleSubmit();
+      });
+
+      if (success) {
+        onClose();
+      }
+    } catch (err) {
+      const errorMessage = getErrorMessage(err);
+      
+      // Show more specific error messages based on error type
+      if (errorMessage.includes('variable')) {
+        errors.content = 'Invalid variable syntax. Please check your template variables.';
+      } else if (errorMessage.includes('duplicate')) {
+        errors.name = 'A template with this name already exists.';
+      } else if (errorMessage.includes('network')) {
+        errors.submit = 'Network error occurred. Please check your connection and try again.';
+      } else {
+        errors.submit = errorMessage;
+      }
+    }
+  }, [handleSubmit, onClose, content, validateVariables, errors]);
+
+  const handleVariableSelect = useCallback((variable: string) => {
     const textArea = document.getElementById('template-content') as HTMLTextAreaElement;
     if (textArea) {
       const start = textArea.selectionStart;
@@ -74,11 +121,11 @@ export const TemplateFormDialog: React.FC<TemplateFormDialogProps> = ({
     } else {
       setContent(content + `{{${variable}}}`);
     }
-  };
+  }, [content, setContent]);
 
-  const handleVariableRemove = (variable: string) => {
+  const handleVariableRemove = useCallback((variable: string) => {
     setContent(content.replace(new RegExp(`{{${variable}}}`, 'g'), ''));
-  };
+  }, [content, setContent]);
 
   return (
     <Dialog
@@ -97,7 +144,20 @@ export const TemplateFormDialog: React.FC<TemplateFormDialogProps> = ({
           <Grid item xs={8}>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
               {errors.submit && (
-                <Alert severity="error" onClose={() => clearError('submit')}>
+                <Alert 
+                  severity="error" 
+                  onClose={() => clearError('submit')}
+                  action={
+                    <Button 
+                      color="inherit" 
+                      size="small" 
+                      onClick={handleSave}
+                      disabled={saving}
+                    >
+                      RETRY
+                    </Button>
+                  }
+                >
                   {errors.submit}
                 </Alert>
               )}
@@ -129,7 +189,10 @@ export const TemplateFormDialog: React.FC<TemplateFormDialogProps> = ({
                 id="template-content"
                 label="Content"
                 value={content}
-                onChange={(e) => setContent(e.target.value)}
+                onChange={(e) => {
+                  setContent(e.target.value);
+                  validateVariables(e.target.value);
+                }}
                 error={!!errors.content}
                 helperText={errors.content || 'Use customer fields from the right panel as variables'}
                 onFocus={() => clearError('content')}

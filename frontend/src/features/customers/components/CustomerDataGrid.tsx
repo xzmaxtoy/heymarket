@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { DataGrid, GridColDef, GridPaginationModel, GridRowSelectionModel } from '@mui/x-data-grid';
+import { Alert, Box, Button, LinearProgress } from '@mui/material';
 import { Customer } from '@/types/customer';
 import { CustomerTableToolbar } from './CustomerTableToolbar';
 import { Filter, FilterGroup, SavedFilter } from '../filters/types';
+import { getErrorMessage } from '@/utils/errorHandling';
 
 interface CustomerDataGridProps {
   customers: Customer[];
@@ -24,6 +26,8 @@ interface CustomerDataGridProps {
   onSaveFilter: (name: string, filter: Filter) => void;
   onDeleteFilter: (filterId: string) => void;
   onSelectAllFiltered?: () => void;
+  error?: string;
+  onRetry?: () => void;
 }
 
 export const CustomerDataGrid: React.FC<CustomerDataGridProps> = ({
@@ -46,23 +50,33 @@ export const CustomerDataGrid: React.FC<CustomerDataGridProps> = ({
   onSaveFilter,
   onDeleteFilter,
   onSelectAllFiltered,
+  error,
+  onRetry,
 }) => {
-  const handlePaginationModelChange = (model: GridPaginationModel) => {
-    if (model.page !== page) {
-      onPageChange(model.page);
+  const handlePaginationModelChange = useCallback((model: GridPaginationModel) => {
+    try {
+      if (model.page !== page) {
+        onPageChange(model.page);
+      }
+      if (model.pageSize !== pageSize) {
+        onPageSizeChange(model.pageSize);
+      }
+    } catch (err) {
+      console.error('Pagination error:', getErrorMessage(err));
     }
-    if (model.pageSize !== pageSize) {
-      onPageSizeChange(model.pageSize);
-    }
-  };
+  }, [page, pageSize, onPageChange, onPageSizeChange]);
 
-  const handleSelectionChange = (newSelection: GridRowSelectionModel) => {
-    const selectedIds = newSelection.map(String);
-    const selectedCustomerData = customers.filter(customer => 
-      selectedIds.includes(customer.id)
-    );
-    onSelectionChange(selectedIds, selectedCustomerData);
-  };
+  const handleSelectionChange = useCallback((newSelection: GridRowSelectionModel) => {
+    try {
+      const selectedIds = newSelection.map(String);
+      const selectedCustomerData = customers.filter(customer => 
+        selectedIds.includes(customer.id)
+      );
+      onSelectionChange(selectedIds, selectedCustomerData);
+    } catch (err) {
+      console.error('Selection error:', getErrorMessage(err));
+    }
+  }, [customers, onSelectionChange]);
 
   const toolbarProps = {
     onColumnSelectorOpen,
@@ -76,37 +90,71 @@ export const CustomerDataGrid: React.FC<CustomerDataGridProps> = ({
     onSelectAllFiltered,
     totalFilteredCount: total,
     loading,
+    error,
+    onRetry,
   };
 
+  if (error) {
+    return (
+      <Box sx={{ width: '100%', mt: 2 }}>
+        <Alert 
+          severity="error"
+          action={
+            onRetry && (
+              <Button 
+                color="inherit" 
+                size="small" 
+                onClick={onRetry}
+                disabled={loading}
+              >
+                RETRY
+              </Button>
+            )
+          }
+        >
+          {error}
+        </Alert>
+      </Box>
+    );
+  }
+
   return (
-    <DataGrid
-      rows={customers}
-      columns={columns}
-      loading={loading}
-      rowCount={total}
-      pageSizeOptions={[5, 10, 25, 50]}
-      paginationMode="server"
-      paginationModel={{ page, pageSize }}
-      onPaginationModelChange={handlePaginationModelChange}
-      checkboxSelection
-      disableRowSelectionOnClick
-      rowSelectionModel={selectedCustomers}
-      onRowSelectionModelChange={handleSelectionChange}
-      slots={{
-        toolbar: CustomerTableToolbar,
-      }}
-      slotProps={{
-        toolbar: toolbarProps,
-      }}
-      sx={{
-        '& .MuiDataGrid-cell': {
-          whiteSpace: 'normal',
-          lineHeight: 'normal',
-          padding: '8px',
-        },
-      }}
-      getRowId={(row: Customer) => row.id}
-    />
+    <Box sx={{ width: '100%', height: '100%' }}>
+      {loading && (
+        <Box sx={{ width: '100%', position: 'relative' }}>
+          <LinearProgress />
+        </Box>
+      )}
+      <DataGrid
+        rows={customers}
+        columns={columns}
+        loading={loading}
+        rowCount={total}
+        pageSizeOptions={[5, 10, 25, 50]}
+        paginationMode="server"
+        paginationModel={{ page, pageSize }}
+        onPaginationModelChange={handlePaginationModelChange}
+        checkboxSelection
+        disableRowSelectionOnClick
+        rowSelectionModel={selectedCustomers}
+        onRowSelectionModelChange={handleSelectionChange}
+        slots={{
+          toolbar: CustomerTableToolbar,
+          loadingOverlay: LinearProgress,
+        }}
+        slotProps={{
+          toolbar: toolbarProps,
+        }}
+        sx={{
+          '& .MuiDataGrid-cell': {
+            whiteSpace: 'normal',
+            lineHeight: 'normal',
+            padding: '8px',
+          },
+        }}
+        getRowId={(row: Customer) => row.id}
+      />
+    </Box>
   );
 };
 
