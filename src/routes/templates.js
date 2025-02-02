@@ -1,7 +1,6 @@
 import express from 'express';
 import { Template } from '../models/template.js';
-import supabaseService from '../services/supabase.js';
-const { supabase } = supabaseService;
+import { supabase } from '../services/supabase.js';
 
 const router = express.Router();
 

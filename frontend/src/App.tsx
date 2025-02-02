@@ -7,6 +7,15 @@ import TemplateList from './features/templates/TemplateList';
 import BatchList from './features/batches/BatchList';
 import AnalyticsDashboard from './features/analytics/components/AnalyticsDashboard';
 import { initializeWebSocket, closeWebSocket } from './services/websocket';
+import { subscribeToTemplates } from './services/supabase';
+import { templatesSlice } from './store/slices/templatesSlice';
+import { Template } from './features/templates/types';
+
+interface TemplatePayload {
+  new: Partial<Template> | null;
+  old: Partial<Template> | null;
+  eventType: 'INSERT' | 'UPDATE' | 'DELETE';
+}
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -38,11 +47,27 @@ function TabPanel(props: TabPanelProps) {
 const App: React.FC = () => {
   const [currentTab, setCurrentTab] = useState(0);
 
-  // Initialize WebSocket connection
+  // Initialize WebSocket and template subscription
   useEffect(() => {
     initializeWebSocket();
+    const unsubscribe = subscribeToTemplates((payload) => {
+      store.dispatch(templatesSlice.actions.handleTemplateChange({
+        template: {
+          id: payload.new?.id || payload.old?.id,
+          name: payload.new?.name || payload.old?.name,
+          content: payload.new?.content || payload.old?.content,
+          description: payload.new?.description,
+          variables: payload.new?.variables || payload.old?.variables || [],
+          created_at: payload.new?.created_at || payload.old?.created_at,
+          updated_at: payload.new?.updated_at || payload.old?.updated_at,
+        },
+        eventType: payload.eventType,
+      }));
+    });
+
     return () => {
       closeWebSocket();
+      unsubscribe();
     };
   }, []);
 

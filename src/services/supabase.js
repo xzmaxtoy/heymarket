@@ -22,7 +22,7 @@ const supabase = createClient(
  * @param {object} updates - Fields to update
  * @returns {Promise<object>} Updated batch record
  */
-export async function updateBatchStatus(batchId, updates) {
+async function updateBatchStatus(batchId, updates) {
   const { data, error } = await supabase
     .from('sms_batches')
     .update({
@@ -44,7 +44,7 @@ export async function updateBatchStatus(batchId, updates) {
  * @param {string} [error] - Optional error message
  * @returns {Promise<void>}
  */
-export async function updateBatchLogs(batchId, status, error = null) {
+async function updateBatchLogs(batchId, status, error = null) {
   const { error: updateError } = await supabase
     .from('sms_batch_log')
     .update({
@@ -63,7 +63,7 @@ export async function updateBatchLogs(batchId, status, error = null) {
  * @param {object} errorDetails - Error details
  * @returns {Promise<void>}
  */
-export async function createBatchErrorLog(batchId, errorDetails) {
+async function createBatchErrorLog(batchId, errorDetails) {
   const { error } = await supabase
     .from('sms_batch_log')
     .insert({
@@ -83,7 +83,7 @@ export async function createBatchErrorLog(batchId, errorDetails) {
  * @param {object} finalState - Final batch state
  * @returns {Promise<object>} Updated batch record
  */
-export async function completeBatch(batchId, finalState) {
+async function completeBatch(batchId, finalState) {
   const { data, error } = await supabase
     .from('sms_batches')
     .update({
@@ -101,10 +101,127 @@ export async function completeBatch(batchId, finalState) {
   return data;
 }
 
-export default {
+/**
+ * Create initial batch record
+ * @param {object} batchData - Batch creation data
+ * @returns {Promise<object>} Created batch record
+ */
+async function createBatchRecord(batchData) {
+  const { data, error } = await supabase
+    .from('sms_batches')
+    .insert({
+      name: batchData.name,
+      template_id: batchData.template?.id,
+      status: 'pending',
+      total_recipients: batchData.recipients.length,
+      completed_count: 0,
+      failed_count: 0,
+      scheduled_for: batchData.options?.scheduleTime,
+      created_at: new Date().toISOString()
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  if (!data) throw new Error('Failed to create batch record');
+  
+  return data;
+}
+
+/**
+ * Create batch log entries for each recipient
+ * @param {string} batchId - Batch ID
+ * @param {object} batchData - Batch creation data
+ * @returns {Promise<void>}
+ */
+async function createBatchLogs(batchId, batchData) {
+  const batchLogs = batchData.recipients.map(recipient => ({
+    batch_id: batchId,
+    targets: recipient.phoneNumber,
+    message: batchData.template?.text || '',
+    variables: recipient.variables,
+    status: 'pending',
+    date_utc: new Date().toISOString(),
+    created_at: new Date().toISOString()
+  }));
+
+  const { error } = await supabase
+    .from('sms_batch_log')
+    .insert(batchLogs);
+
+  if (error) throw error;
+}
+
+/**
+ * Get template by ID
+ * @param {string} templateId - Template ID
+ * @returns {Promise<object>} Template record
+ */
+async function getTemplateById(templateId) {
+  const { data, error } = await supabase
+    .from('sms_templates')
+    .select('*')
+    .eq('id', templateId)
+    .single();
+
+  if (error) {
+    console.error('Error fetching template:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+/**
+ * Create or update template
+ * @param {object} template - Template data
+ * @returns {Promise<object>} Template record
+ */
+async function upsertTemplate(template) {
+  const { data, error } = await supabase
+    .from('sms_templates')
+    .upsert({
+      ...template,
+      updated_at: new Date().toISOString()
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error upserting template:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+/**
+ * Delete template
+ * @param {string} templateId - Template ID
+ * @returns {Promise<void>}
+ */
+async function deleteTemplate(templateId) {
+  const { error } = await supabase
+    .from('sms_templates')
+    .delete()
+    .eq('id', templateId);
+
+  if (error) {
+    console.error('Error deleting template:', error);
+    throw error;
+  }
+}
+
+// Export all functions and supabase client
+export {
   supabase,
   updateBatchStatus,
   updateBatchLogs,
   createBatchErrorLog,
-  completeBatch
+  completeBatch,
+  createBatchRecord,
+  createBatchLogs,
+  getTemplateById,
+  upsertTemplate,
+  deleteTemplate
 };
