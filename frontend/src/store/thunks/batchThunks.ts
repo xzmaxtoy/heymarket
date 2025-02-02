@@ -36,7 +36,7 @@ const createBatchRecord = async (batchData: BatchCreationState): Promise<Batch> 
       total_recipients: batchData.customers.length,
       completed_count: 0,
       failed_count: 0,
-      scheduled_for: batchData.scheduledFor?.toISOString(),
+      scheduled_for: batchData.scheduledFor,
     })
     .select()
     .single();
@@ -178,7 +178,7 @@ export const createBatch = createAsyncThunk(
             },
           })),
           options: {
-            scheduleTime: batchData.scheduledFor?.toISOString(),
+            scheduleTime: batchData.scheduledFor,
             priority: 'normal',
             autoStart: false,
             retryStrategy: {

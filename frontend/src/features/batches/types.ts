@@ -72,7 +72,7 @@ export interface BatchStats {
 export interface BatchCreationState {
   name: string;
   template: Template | null;
-  scheduledFor: Dayjs | null;
+  scheduledFor: string | null;  // ISO string format
   customers: Customer[];
   variables: Record<string, string>;
 }

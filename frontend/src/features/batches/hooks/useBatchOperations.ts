@@ -3,12 +3,9 @@ import { useAppDispatch } from '@/store/hooks';
 import api from '@/services/api';
 import { 
   BatchCreationState, 
-  BatchApiResponse, 
-  BatchState,
-  BatchStatusUpdate,
   BatchStatus,
 } from '../types';
-import { updateBatchStatus } from '@/store/slices/batchesSlice';
+import { updateBatch } from '@/store/slices/batchesSlice';
 
 interface BatchResponseData {
   batchId: string;
@@ -45,7 +42,7 @@ export const useBatchOperations = () => {
           },
         })),
         options: {
-          scheduleTime: batchData.scheduledFor?.toISOString(),
+          scheduleTime: batchData.scheduledFor,
           priority: 'normal',
           autoStart: false,
           retryStrategy: {
@@ -58,7 +55,7 @@ export const useBatchOperations = () => {
       const { batchId } = response.data;
 
       // Resume batch processing
-      const resumeResponse = await api.post<ApiResponse>(`/api/batch/${batchId}/resume`);
+      const resumeResponse = await api.post<ApiResponse>(`/api/batch/${batchId}/resume`, {});
       const { progress } = resumeResponse.data;
 
       // Update batch status in Redux store
@@ -69,7 +66,7 @@ export const useBatchOperations = () => {
         failed_count: progress.failed,
         total_recipients: progress.total,
       };
-      dispatch(updateBatchStatus(statusUpdate));
+      dispatch(updateBatch({ id: batchId, changes: statusUpdate }));
 
       return response.data;
     } catch (error) {
@@ -80,7 +77,7 @@ export const useBatchOperations = () => {
 
   const resumeBatch = useCallback(async (batchId: string) => {
     try {
-      const response = await api.post<ApiResponse>(`/api/batch/${batchId}/resume`);
+      const response = await api.post<ApiResponse>(`/api/batch/${batchId}/resume`, {});
       const { progress } = response.data;
       
       // Update batch status in Redux store
@@ -91,7 +88,7 @@ export const useBatchOperations = () => {
         failed_count: progress.failed,
         total_recipients: progress.total,
       };
-      dispatch(updateBatchStatus(statusUpdate));
+      dispatch(updateBatch({ id: batchId, changes: statusUpdate }));
 
       return response.data;
     } catch (error) {

@@ -89,7 +89,7 @@ export const BatchCreationDialog: React.FC<BatchCreationDialogProps> = ({
   // Validate schedule time
   const validateSchedule = useCallback(() => {
     if (creation.scheduledFor) {
-      const scheduleTime = creation.scheduledFor.toDate();
+      const scheduleTime = new Date(creation.scheduledFor);
       const now = new Date();
       if (scheduleTime <= now) {
         setError('Schedule time must be in the future');
