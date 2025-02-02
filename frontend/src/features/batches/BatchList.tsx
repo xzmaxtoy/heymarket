@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Paper, Grid } from '@mui/material';
+import { Box, Paper } from '@mui/material';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import { useAppDispatch, useAppSelector } from '@/store';
 import {
@@ -16,8 +16,7 @@ import BatchListToolbar from './components/BatchListToolbar';
 import BatchStatusChip from './components/BatchStatusChip';
 import BatchProgress from './components/BatchProgress';
 import BatchActions from './components/BatchActions';
-import BatchLogViewer from './components/BatchLogViewer';
-import { ensureSocketConnection } from '@/services/websocket';
+import { subscribeToBatch, unsubscribeFromBatch } from '@/services/websocket';
 
 export const BatchList: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -25,13 +24,30 @@ export const BatchList: React.FC = () => {
   const loading = useAppSelector(selectBatchesLoading);
   const { pageSize, currentPage, total } = useAppSelector(selectBatchesPagination);
   const filter = useAppSelector(selectBatchesFilter);
-  const [selectedBatch, setSelectedBatch] = React.useState<Batch | null>(null);
 
-  // Initialize websocket and load batches on mount
+  // Load batches on mount and when filter/pagination changes
   React.useEffect(() => {
-    ensureSocketConnection();
     dispatch(fetchBatches({ page: currentPage + 1, pageSize, filter }));
   }, [dispatch, currentPage, pageSize, filter]);
+
+  // Subscribe to batch updates
+  React.useEffect(() => {
+    // Subscribe to all visible batches
+    batches.forEach(batch => {
+      if (batch.status === 'processing' || batch.status === 'pending') {
+        subscribeToBatch(batch.id);
+      }
+    });
+
+    // Cleanup subscriptions
+    return () => {
+      batches.forEach(batch => {
+        if (batch.status === 'processing' || batch.status === 'pending') {
+          unsubscribeFromBatch(batch.id);
+        }
+      });
+    };
+  }, [batches]);
 
   const handleRefreshBatch = (batchId: string) => {
     dispatch(fetchBatches({ page: currentPage + 1, pageSize, filter }));
@@ -46,15 +62,12 @@ export const BatchList: React.FC = () => {
     }
   };
 
-  const handleRowClick = (params: any) => {
-    setSelectedBatch(params.row as Batch);
-  };
-
   const columns: GridColDef[] = [
     {
       field: 'name',
       headerName: 'Name',
-      width: 150,
+      flex: 1,
+      minWidth: 200,
     },
     {
       field: 'status',
@@ -82,21 +95,15 @@ export const BatchList: React.FC = () => {
       field: 'scheduled_for',
       headerName: 'Scheduled',
       width: 170,
-      valueFormatter: (params) => {
-        if (!params.value) return '-';
-        const date = new Date(params.value);
-        return isNaN(date.getTime()) ? '-' : date.toLocaleString();
-      },
+      valueFormatter: (params) => 
+        params.value ? new Date(params.value).toLocaleString() : '-',
     },
     {
       field: 'created_at',
       headerName: 'Created',
       width: 170,
-      valueFormatter: (params) => {
-        if (!params.value) return '-';
-        const date = new Date(params.value);
-        return isNaN(date.getTime()) ? '-' : date.toLocaleString();
-      },
+      valueFormatter: (params) => 
+        new Date(params.value).toLocaleString(),
     },
     {
       field: 'actions',
@@ -116,31 +123,22 @@ export const BatchList: React.FC = () => {
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <BatchListToolbar />
 
-      <Grid container spacing={2} sx={{ flex: 1, m: 0, p: 2 }}>
-        <Grid item xs={12} md={7}>
-          <Paper sx={{ height: '100%' }}>
-            <DataGrid
-              rows={batches}
-              columns={columns}
-              loading={loading}
-              rowCount={total}
-              pageSizeOptions={[10, 25, 50]}
-              paginationMode="server"
-              paginationModel={{ page: currentPage, pageSize }}
-              onPaginationModelChange={(model) => 
-                handlePaginationChange(model.page, model.pageSize)
-              }
-              onRowClick={handleRowClick}
-              getRowId={(row: Batch) => row.id}
-            />
-          </Paper>
-        </Grid>
-        <Grid item xs={12} md={5}>
-          {selectedBatch && (
-            <BatchLogViewer batch={selectedBatch} />
-          )}
-        </Grid>
-      </Grid>
+      <Paper sx={{ flex: 1, m: 2 }}>
+        <DataGrid
+          rows={batches}
+          columns={columns}
+          loading={loading}
+          rowCount={total}
+          pageSizeOptions={[10, 25, 50]}
+          paginationMode="server"
+          paginationModel={{ page: currentPage, pageSize }}
+          onPaginationModelChange={(model) => 
+            handlePaginationChange(model.page, model.pageSize)
+          }
+          disableRowSelectionOnClick
+          getRowId={(row: Batch) => row.id}
+        />
+      </Paper>
     </Box>
   );
 };

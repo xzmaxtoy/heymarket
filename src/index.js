@@ -17,7 +17,6 @@ import { errorHandler, notFound } from './middleware/error.js';
 import messagesRouter from './routes/messages.js';
 import batchRouter from './routes/batch.js';
 import customersRouter from './routes/customers.js';
-import templatesRouter from './routes/templates.js';
 
 const app = express();
 
@@ -96,14 +95,13 @@ app.use('/api/customers', customersRouter);
 // Authentication middleware for protected API routes
 app.use('/api/messages', authenticate, messagesRouter);
 app.use('/api/batch', authenticate, batchRouter);
-app.use('/api/templates', authenticate, templatesRouter);
 
 // Error handling
 app.use(notFound);
 app.use(errorHandler);
 
 // Start server
-const port = process.env.PORT || process.env.WEBSITE_PORT || 3000;
+const port = process.env.PORT || process.env.WEBSITE_PORT || 8080;
 const server = app.listen(port, () => {
   console.log(`Server running on port ${port}`);
   console.log(`Environment: ${process.env.NODE_ENV}`);

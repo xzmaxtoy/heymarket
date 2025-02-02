@@ -2,11 +2,6 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { Template, TemplateFilter } from '@/features/templates/types';
 import { fetchTemplates, createTemplate, updateTemplate, deleteTemplate } from '../thunks/templateThunks';
 
-interface TemplateChangePayload {
-  template: Template;
-  eventType: 'INSERT' | 'UPDATE' | 'DELETE';
-}
-
 interface TemplatesState {
   templates: Template[];
   selectedTemplate: Template | null;
@@ -32,7 +27,7 @@ const initialState: TemplatesState = {
   },
 };
 
-export const templatesSlice = createSlice({
+const templatesSlice = createSlice({
   name: 'templates',
   initialState,
   reducers: {
@@ -49,37 +44,6 @@ export const templatesSlice = createSlice({
     },
     setCurrentPage: (state, action: PayloadAction<number>) => {
       state.currentPage = action.payload;
-    },
-    // Real-time update handlers
-    handleTemplateChange: (state, action: PayloadAction<TemplateChangePayload>) => {
-      const { template, eventType } = action.payload;
-      
-      switch (eventType) {
-        case 'INSERT':
-          state.templates = [...state.templates, template];
-          state.total += 1;
-          break;
-          
-        case 'UPDATE':
-          const updateIndex = state.templates.findIndex(t => t.id === template.id);
-          if (updateIndex !== -1) {
-            state.templates[updateIndex] = template;
-            // Update selected template if it's the one being edited
-            if (state.selectedTemplate?.id === template.id) {
-              state.selectedTemplate = template;
-            }
-          }
-          break;
-          
-        case 'DELETE':
-          state.templates = state.templates.filter(t => t.id !== template.id);
-          state.total -= 1;
-          // Clear selected template if it's the one being deleted
-          if (state.selectedTemplate?.id === template.id) {
-            state.selectedTemplate = null;
-          }
-          break;
-      }
     },
   },
   extraReducers: (builder) => {
@@ -127,15 +91,7 @@ export const templatesSlice = createSlice({
       .addCase(updateTemplate.fulfilled, (state, action) => {
         console.log('updateTemplate.fulfilled:', action.payload);
         state.loading = false;
-        // Update the template in the list
-        const index = state.templates.findIndex(t => t.id === action.payload.id);
-        if (index !== -1) {
-          state.templates[index] = action.payload;
-        }
-        // Update selected template if it's the one being edited
-        if (state.selectedTemplate?.id === action.payload.id) {
-          state.selectedTemplate = action.payload;
-        }
+        // Don't update the list here - let the component trigger a refresh
       })
       .addCase(updateTemplate.rejected, (state, action) => {
         console.error('updateTemplate.rejected:', action.error);

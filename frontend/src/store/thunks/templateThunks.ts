@@ -1,5 +1,5 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
-import api from '@/services/api';
+import { supabase } from '@/services/supabase';
 import { 
   Template, 
   TemplateMutation,
@@ -58,21 +58,43 @@ export const fetchTemplates = createAsyncThunk(
     try {
       console.log('Fetching templates with params:', { page, pageSize, filter });
       
-      const params = new URLSearchParams({
-        page: page.toString(),
-        pageSize: pageSize.toString(),
-        ...(filter?.search && { search: filter.search }),
-        ...(filter?.sortBy && { sortBy: filter.sortBy }),
-        ...(filter?.sortOrder && { sortOrder: filter.sortOrder })
-      });
+      let query = supabase
+        .from('sms_templates')
+        .select('*', { count: 'exact' });
 
-      const response = await api.get<{
-        templates: Template[];
-        total: number;
-      }>(`/api/templates?${params.toString()}`);
+      // Apply filters
+      if (filter?.search) {
+        query = query.or(`name.ilike.%${filter.search}%,content.ilike.%${filter.search}%`);
+      }
 
-      console.log('Fetched templates:', response);
-      return response;
+      // Apply sorting
+      if (filter?.sortBy) {
+        query = query.order(filter.sortBy, { 
+          ascending: filter.sortOrder === 'asc' 
+        });
+      } else {
+        // Default sorting by updated_at desc
+        query = query.order('updated_at', { ascending: false });
+      }
+
+      // Apply pagination
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+      query = query.range(from, to);
+
+      const { data, error, count } = await query;
+
+      if (error) {
+        console.error('Error fetching templates:', error);
+        throw error;
+      }
+
+      console.log('Fetched templates:', data, 'count:', count);
+
+      return {
+        templates: data as Template[],
+        total: count || 0,
+      };
     } catch (error) {
       console.error('Error in fetchTemplates:', error);
       throw error;
@@ -91,14 +113,24 @@ export const createTemplate = createAsyncThunk(
         throw new Error(JSON.stringify(errors));
       }
 
-      const response = await api.post<Template>('/api/templates', {
-        name: template.name,
-        content: template.content,
-        description: template.description
-      });
+      const { data, error } = await supabase
+        .from('sms_templates')
+        .insert({
+          name: template.name,
+          content: template.content,
+          description: template.description,
+          variables: template.variables,
+        })
+        .select()
+        .single();
 
-      console.log('Created template:', response);
-      return response;
+      if (error) {
+        console.error('Error creating template:', error);
+        throw error;
+      }
+
+      console.log('Created template:', data);
+      return data as Template;
     } catch (error) {
       console.error('Error in createTemplate:', error);
       throw error;
@@ -117,14 +149,26 @@ export const updateTemplate = createAsyncThunk(
         throw new Error(JSON.stringify(errors));
       }
 
-      const response = await api.patch<Template>(`/api/templates/${id}`, {
-        name: template.name,
-        content: template.content,
-        description: template.description
-      });
+      const { data, error } = await supabase
+        .from('sms_templates')
+        .update({
+          name: template.name,
+          content: template.content,
+          description: template.description,
+          variables: template.variables,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .select()
+        .single();
 
-      console.log('Updated template:', response);
-      return response;
+      if (error) {
+        console.error('Error updating template:', error);
+        throw error;
+      }
+
+      console.log('Updated template:', data);
+      return data as Template;
     } catch (error) {
       console.error('Error in updateTemplate:', error);
       throw error;
@@ -137,30 +181,19 @@ export const deleteTemplate = createAsyncThunk(
   'templates/deleteTemplate',
   async (id: string) => {
     try {
-      await api.delete(`/api/templates/${id}`);
+      const { error } = await supabase
+        .from('sms_templates')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error deleting template:', error);
+        throw error;
+      }
+
       return id;
     } catch (error) {
       console.error('Error in deleteTemplate:', error);
-      throw error;
-    }
-  }
-);
-
-// Preview template
-export const previewTemplate = createAsyncThunk(
-  'templates/previewTemplate',
-  async ({ id, variables }: { id: string; variables: Record<string, string> }) => {
-    try {
-      const response = await api.post<{
-        text: string;
-        variables: string[];
-        error?: string;
-      }>(`/api/templates/${id}/preview`, { variables });
-
-      console.log('Template preview:', response);
-      return response;
-    } catch (error) {
-      console.error('Error in previewTemplate:', error);
       throw error;
     }
   }

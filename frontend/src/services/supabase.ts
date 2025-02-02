@@ -23,37 +23,6 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-// Template real-time subscription
-export const subscribeToTemplates = (
-  callback: (payload: {
-    new: any;
-    old: any;
-    eventType: 'INSERT' | 'UPDATE' | 'DELETE';
-  }) => void
-) => {
-  const subscription = supabase
-    .channel('templates_changes')
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'sms_templates',
-      },
-      (payload) => {
-        console.log('Template change received:', payload);
-        callback(payload);
-      }
-    )
-    .subscribe((status) => {
-      console.log('Template subscription status:', status);
-    });
-
-  return () => {
-    subscription.unsubscribe();
-  };
-};
-
 // Test connection and log result
 (async () => {
   try {

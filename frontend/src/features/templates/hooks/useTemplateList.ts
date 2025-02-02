@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import {
   selectTemplates,
@@ -20,19 +20,13 @@ export const useTemplateList = () => {
   const { pageSize, currentPage, total } = useAppSelector(selectTemplatesPagination);
   const filter = useAppSelector(selectTemplatesFilter);
 
-  // Track if initial load has happened
-  const initialLoadRef = useRef(false);
-
   // Load templates on mount and when filters/pagination change
   useEffect(() => {
-    if (!initialLoadRef.current) {
-      dispatch(fetchTemplates({
-        page: currentPage + 1,
-        pageSize,
-        filter,
-      }));
-      initialLoadRef.current = true;
-    }
+    dispatch(fetchTemplates({
+      page: currentPage + 1,
+      pageSize,
+      filter,
+    }));
   }, [dispatch, currentPage, pageSize, filter]);
 
   const handleFilterChange = (newFilter: TemplateFilter) => {
