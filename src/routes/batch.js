@@ -658,41 +658,96 @@ router.get('/:batchId/errors', (req, res) => {
 });
 
 // Resume batch processing
-router.post('/:batchId/resume', (req, res) => {
+router.post('/:batchId/resume', async (req, res) => {
   try {
     const { batchId } = req.params;
     console.log('Resuming batch:', batchId);
 
-    const batch = getBatch(batchId);
+    // Check memory first
+    let batch = getBatch(batchId);
+    
+    // If not in memory, check database
     if (!batch) {
-      return res.status(404).json({
-        success: false,
-        error: 'Batch not found',
-        message: 'Invalid batch ID or status expired'
-      });
+      try {
+        // Fetch batch data and logs
+        const [batchResponse, logsResponse] = await Promise.all([
+          supabase
+            .from('sms_batches')
+            .select(`
+              *,
+              template:template_id (
+                id,
+                content
+              )
+            `)
+            .eq('id', batchId)
+            .single(),
+          supabase
+            .from('sms_batch_log')
+            .select('targets, variables')
+            .eq('batch_id', batchId)
+        ]);
+
+        if (batchResponse.error || !batchResponse.data) {
+          return res.status(404).json({
+            success: false,
+            error: 'Batch not found',
+            message: 'Invalid batch ID'
+          });
+        }
+
+        if (logsResponse.error) {
+          throw logsResponse.error;
+        }
+
+        const batchData = batchResponse.data;
+
+        if (batchData.status !== 'pending') {
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid batch status',
+            message: 'Only pending batches can be resumed'
+          });
+        }
+
+        // Map logs to recipients format
+        const recipients = logsResponse.data.map(log => ({
+          phoneNumber: log.targets,
+          variables: log.variables || {}
+        }));
+
+        // Create new batch instance
+        batch = await createBatch(
+          { 
+            id: batchData.template_id,
+            text: batchData.template?.content
+          },
+          recipients,
+          { 
+            batchId,
+            priority: batchData.priority || 'normal',
+            scheduleTime: batchData.scheduled_for,
+            autoStart: false
+          },
+          req
+        );
+      } catch (error) {
+        console.error('Error recreating batch:', error);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to recreate batch',
+          message: error.message
+        });
+      }
     }
 
-    if (batch.status !== 'pending') {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid batch status',
-        message: 'Only pending batches can be resumed'
-      });
-    }
-
-    // Start batch processing with auth from request
+    // Start batch processing
     batch.start({
       apiKey: req.apiKey,
       headers: req.headers
     }).catch(error => {
       console.error('Batch processing error:', error);
-      batch.status = 'failed';
-      batch.errors.categories['system'] = (batch.errors.categories['system'] || 0) + 1;
-      batch.errors.samples.push({
-        error: error.message,
-        category: 'system',
-        timestamp: new Date().toISOString()
-      });
+      batch.state.fail(error);
     });
 
     // Log resume request
