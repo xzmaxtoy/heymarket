@@ -50,14 +50,24 @@ export const TemplateFormDialog: React.FC<TemplateFormDialogProps> = ({
 
   // Validate variable syntax
   const validateVariables = useCallback((content: string) => {
-    const variableRegex = /{{([^{}]+)}}/g;
-    const matches = content.match(variableRegex) || [];
-    const uniqueVariables = new Set(matches.map(match => match.slice(2, -2).trim()));
+    // Extract all variable-like patterns
+    const variableMatches = content.match(/{{[^{}]*}}/g) || [];
+    const uniqueVariables = new Set(variableMatches.map(match => match.slice(2, -2).trim()));
     
-    // Check for malformed variables
-    const malformedRegex = /{{[^}]*}(?!})|(?<!{){[^}]*}}/g;
-    if (malformedRegex.test(content)) {
-      errors.content = 'Invalid variable syntax. Please check your curly braces.';
+    // Count opening and closing braces
+    const openBraces = (content.match(/{{/g) || []).length;
+    const closeBraces = (content.match(/}}/g) || []).length;
+
+    // Check for mismatched braces
+    if (openBraces !== closeBraces) {
+      errors.content = 'Mismatched curly braces. Please check your variable syntax.';
+      return false;
+    }
+
+    // Check for malformed variables (single braces or incorrect order)
+    const singleBraces = content.replace(/{{|}}/g, '').match(/{|}/g);
+    if (singleBraces) {
+      errors.content = 'Invalid variable syntax. Please use double curly braces {{variable}}.';
       return false;
     }
 

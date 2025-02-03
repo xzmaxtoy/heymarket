@@ -182,8 +182,7 @@ export const createBatch = createAsyncThunk(
       console.log('Batch created in Supabase:', batchRecord);
 
       // Extract variables used in template
-      const templateContent = batchData.template?.content || '';
-      const usedVariables = extractTemplateVariables(templateContent);
+      const usedVariables = extractTemplateVariables(batchData.template?.content || '');
 
       // Create batch logs and prepare recipient data for valid customers only
       const recipients = validCustomers.map(customer => {
@@ -203,9 +202,9 @@ export const createBatch = createAsyncThunk(
       try {
         console.log('Creating batch in backend API');
 
-        await api.post('/api/batch', {
+        await api.post('/api/v2/batch', {
           batchId: batchRecord.id,
-          text: templateContent,
+          templateId: batchData.template?.id,
           recipients,
           options: {
             scheduleTime: batchData.scheduledFor,
@@ -254,10 +253,11 @@ export const startBatch = createAsyncThunk(
 
       // Call backend resume endpoint
       try {
-        await api.post(`/api/batch/${batchId}/resume`, {});
+        await api.post(`/api/v2/batch/${batchId}/resume`, {});
         console.log('Backend batch started');
       } catch (error) {
-        console.error('Error starting batch in backend (continuing):', error);
+        console.error('Error starting batch in backend:', error);
+        throw error; // Throw error since this is critical
       }
 
       // Update Supabase status

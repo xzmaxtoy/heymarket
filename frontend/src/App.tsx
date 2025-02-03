@@ -1,92 +1,61 @@
-import React, { useState, useEffect } from 'react';
-import { Box, Container, CssBaseline, Tab, Tabs } from '@mui/material';
-import { Provider } from 'react-redux';
-import { store } from './store';
-import Notifications from './components/Notifications';
-import CustomerSelection from './features/customers/CustomerSelection';
-import TemplateList from './features/templates/TemplateList';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Box, CssBaseline, AppBar, Toolbar, Typography, Container } from '@mui/material';
+import BatchWorkspaceRoutes from './features/batches/workspace/routes/BatchWorkspaceRoutes';
+import { useFeatureFlag } from './hooks/useFeatureFlag';
+
+// Import existing components
 import BatchList from './features/batches/BatchList';
+import TemplateList from './features/templates/TemplateList';
+import CustomerSelection from './features/customers/CustomerSelection';
 import AnalyticsDashboard from './features/analytics/components/AnalyticsDashboard';
-import { initializeWebSocket, closeWebSocket } from './services/websocket';
+import Navigation from './components/Navigation';
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
+export default function App() {
+  const { isEnabled: useNewBatchSystem } = useFeatureFlag('NEW_BATCH_SYSTEM');
 
   return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`tabpanel-${index}`}
-      aria-labelledby={`tab-${index}`}
-      style={{ height: '100%' }}
-      {...other}
-    >
-      {value === index && (
-        <Box sx={{ height: '100%' }}>
-          {children}
+    <Router>
+      <Box sx={{ display: 'flex' }}>
+        <CssBaseline />
+        
+        {/* App Bar */}
+        <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
+          <Toolbar>
+            <Typography variant="h6" noWrap component="div">
+              SMS Management System
+            </Typography>
+          </Toolbar>
+        </AppBar>
+
+        {/* Navigation */}
+        <Navigation />
+
+        {/* Main Content */}
+        <Box component="main" sx={{ flexGrow: 1, p: 3, mt: 8 }}>
+          <Container maxWidth="xl">
+            <Routes>
+              {/* Redirect root to batches */}
+              <Route path="/" element={<Navigate to="/batches" replace />} />
+
+              {/* Main routes */}
+              <Route path="/batches/*" element={
+                useNewBatchSystem ? <BatchWorkspaceRoutes /> : <BatchList />
+              } />
+              <Route path="/templates" element={<TemplateList />} />
+              <Route path="/customers" element={<CustomerSelection />} />
+              <Route path="/analytics" element={<AnalyticsDashboard />} />
+
+              {/* Fallback route */}
+              <Route path="*" element={
+                <Box sx={{ p: 3, textAlign: 'center' }}>
+                  <Typography variant="h5">404: Page Not Found</Typography>
+                </Box>
+              } />
+            </Routes>
+          </Container>
         </Box>
-      )}
-    </div>
+      </Box>
+    </Router>
   );
 }
-
-const App: React.FC = () => {
-  const [currentTab, setCurrentTab] = useState(0);
-
-  // Initialize WebSocket connection
-  useEffect(() => {
-    initializeWebSocket();
-    return () => {
-      closeWebSocket();
-    };
-  }, []);
-
-  return (
-    <Provider store={store}>
-      <CssBaseline />
-      <>
-        <Notifications />
-        <Container maxWidth={false} sx={{ height: '100vh', py: 2 }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-          <Tabs
-            value={currentTab}
-            onChange={(_, newValue) => setCurrentTab(newValue)}
-            sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}
-          >
-            <Tab label="Customers" />
-            <Tab label="Templates" />
-            <Tab label="Batches" />
-            <Tab label="Analytics" />
-          </Tabs>
-
-          <Box sx={{ flex: 1, minHeight: 0 }}>
-            <TabPanel value={currentTab} index={0}>
-              <CustomerSelection />
-            </TabPanel>
-
-            <TabPanel value={currentTab} index={1}>
-              <TemplateList />
-            </TabPanel>
-
-            <TabPanel value={currentTab} index={2}>
-              <BatchList />
-            </TabPanel>
-
-            <TabPanel value={currentTab} index={3}>
-              <AnalyticsDashboard />
-            </TabPanel>
-          </Box>
-        </Box>
-        </Container>
-      </>
-    </Provider>
-  );
-};
-
-export default App;

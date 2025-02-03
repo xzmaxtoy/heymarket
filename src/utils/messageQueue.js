@@ -1,33 +1,256 @@
-import { promisify } from 'util';
+import { batchManager } from '../models/v2/BatchManager.js';
+import { supabase } from '../services/supabase.js';
+import { batches, getBatch } from '../models/batch.js';
+import { emitBatchUpdate, emitBatchError, emitBatchComplete } from '../websocket/server.js';
 import axios from 'axios';
 import config from '../config/config.js';
 import { addHeymarketAuth } from '../middleware/auth.js';
 
-const sleep = promisify(setTimeout);
+class MessageQueue {
+  constructor() {
+    this.queues = new Map(); // batchId -> queue
+    this.processing = new Map(); // batchId -> processing state
+    this.retryTimeouts = new Map(); // messageId -> timeout
+    this.authTokens = new Map(); // batchId -> auth token
+    this.concurrency = 5; // Process 5 messages at a time
+    this.completionDelay = 30000; // Wait 30 seconds before checking completion
+    this.completionChecks = new Map(); // batchId -> timeout
+  }
 
-// In-memory storage for batch status
-const batchStatus = new Map();
+  /**
+   * Add messages to queue for a batch
+   */
+  async addBatch(messages) {
+    const batchId = messages[0]?.batchId;
+    if (!batchId) return;
 
-/**
- * Process messages in queue with rate limiting
- */
-async function processMessageQueue(batchId, messages, auth) {
-  const results = {
-    total: messages.length,
-    completed: 0,
-    successful: 0,
-    failed: 0,
-    details: []
-  };
+    // Initialize queue if not exists
+    if (!this.queues.has(batchId)) {
+      this.queues.set(batchId, []);
+      this.processing.set(batchId, false);
+    }
 
-  // Update initial status
-  batchStatus.set(batchId, { ...results, status: 'processing' });
+    // Add messages to queue
+    const queue = this.queues.get(batchId);
+    queue.push(...messages);
 
-  for (const msg of messages) {
+    console.log(`Added ${messages.length} messages to queue for batch ${batchId}`);
+
+    // Update pending count
+    await batchManager.updateProgress(batchId, {
+      pending: queue.length,
+      processing: 0
+    });
+  }
+
+  /**
+   * Process messages in a batch
+   */
+  async processBatch(batchId, auth) {
+    if (!this.queues.has(batchId)) {
+      console.log(`No messages in queue for batch ${batchId}`);
+      return;
+    }
+
+    // Store auth token for this batch
+    this.authTokens.set(batchId, auth);
+
+    this.processing.set(batchId, true);
+    const queue = this.queues.get(batchId);
+
     try {
-      // Add delay between messages to respect rate limits
-      await sleep(1000);
+      // Get batch from old system
+      const oldBatch = getBatch(batchId);
+      if (oldBatch) {
+        // Start processing through old batch system
+        await oldBatch.start(auth);
+        return;
+      }
 
+      console.log(`Processing ${queue.length} messages for batch ${batchId}`);
+
+      // Update processing count
+      await batchManager.updateProgress(batchId, {
+        pending: queue.length,
+        processing: Math.min(queue.length, this.concurrency)
+      });
+
+      // Otherwise use new system
+      while (queue.length > 0) {
+        // Process messages in chunks
+        const chunk = queue.splice(0, this.concurrency);
+        await Promise.all(chunk.map(msg => this.processMessage(msg)));
+
+        // Update progress after each chunk
+        if (queue.length > 0) {
+          await batchManager.updateProgress(batchId, {
+            pending: queue.length,
+            processing: Math.min(queue.length, this.concurrency)
+          });
+        }
+      }
+
+      // Schedule completion check
+      this.scheduleCompletionCheck(batchId);
+
+    } catch (error) {
+      console.error('Error processing batch:', error);
+      await batchManager.updateStatus(batchId, 'failed', {
+        error: error.message
+      });
+      emitBatchError(batchId, {
+        error: error.message,
+        state: await batchManager.getBatch(batchId)
+      });
+    } finally {
+      this.processing.set(batchId, false);
+    }
+  }
+
+  /**
+   * Schedule completion check with delay
+   */
+  scheduleCompletionCheck(batchId) {
+    // Clear any existing check
+    const existingCheck = this.completionChecks.get(batchId);
+    if (existingCheck) {
+      clearTimeout(existingCheck);
+    }
+
+    // Schedule new check
+    const timeout = setTimeout(async () => {
+      await this.checkBatchCompletion(batchId);
+    }, this.completionDelay);
+
+    this.completionChecks.set(batchId, timeout);
+  }
+
+  /**
+   * Check if batch is complete
+   */
+  async checkBatchCompletion(batchId) {
+    try {
+      console.log(`Checking completion status for batch ${batchId}`);
+
+      // Get all message statuses
+      const { data: logs, error: logsError } = await supabase
+        .from('sms_batch_log')
+        .select('status')
+        .eq('batch_id', batchId);
+
+      if (logsError) throw logsError;
+
+      // Count statuses
+      const counts = logs.reduce((acc, log) => {
+        acc[log.status] = (acc[log.status] || 0) + 1;
+        return acc;
+      }, {});
+
+      const total = logs.length;
+      const completed = counts.completed || 0;
+      const failed = counts.failed || 0;
+      const pending = counts.pending || 0;
+      const processing = counts.processing || 0;
+
+      console.log('Batch status counts:', {
+        batchId,
+        total,
+        completed,
+        failed,
+        pending,
+        processing
+      });
+
+      // Update progress
+      await batchManager.updateProgress(batchId, {
+        total,
+        completed,
+        failed,
+        pending,
+        processing
+      });
+
+      // Calculate success rate
+      const successRate = total > 0 ? (completed / total) * 100 : 0;
+
+      // Update metrics
+      await batchManager.updateMetrics(batchId, {
+        success_rate: successRate,
+        credits_used: completed,
+        messages_per_second: total > 0 ? total / (this.completionDelay / 1000) : 0
+      });
+
+      // Check if complete
+      if (pending === 0 && processing === 0) {
+        // All messages are either completed or failed
+        const status = failed === total ? 'failed' : 'completed';
+        await batchManager.updateStatus(batchId, status);
+
+        // Clean up
+        this.queues.delete(batchId);
+        this.processing.delete(batchId);
+        this.authTokens.delete(batchId);
+        this.completionChecks.delete(batchId);
+
+        // Emit completion
+        const batch = await batchManager.getBatch(batchId);
+        if (status === 'completed') {
+          emitBatchComplete(batchId, batch);
+        } else {
+          emitBatchError(batchId, {
+            error: 'All messages failed',
+            state: batch
+          });
+        }
+      } else {
+        // Still has pending or processing messages, schedule another check
+        this.scheduleCompletionCheck(batchId);
+      }
+    } catch (error) {
+      console.error('Error checking batch completion:', error);
+    }
+  }
+
+  /**
+   * Process a single message
+   */
+  async processMessage(message) {
+    const { batchId, messageId, phoneNumber, variables } = message;
+    
+    try {
+      // Get auth token for this batch
+      const auth = this.authTokens.get(batchId);
+      if (!auth) {
+        throw new Error('No auth token found for batch');
+      }
+
+      // Get message from batch log
+      const { data: log, error: logError } = await supabase
+        .from('sms_batch_log')
+        .select('*')
+        .eq('id', messageId)
+        .single();
+
+      if (logError) throw logError;
+      if (!log) throw new Error('Message log not found');
+
+      // Update status to processing
+      await batchManager.updateMessageStatus(messageId, 'processing');
+
+      // Generate message content
+      let content = log.message;
+      Object.entries(variables || {}).forEach(([key, value]) => {
+        content = content.replace(new RegExp(`{{${key}}}`, 'g'), value);
+      });
+
+      console.log('Sending message:', {
+        phoneNumber,
+        content,
+        batchId,
+        messageId
+      });
+
+      // Send message
       const messageConfig = {
         ...addHeymarketAuth(auth),
         url: `${config.heymarketBaseUrl}/message/send`,
@@ -35,81 +258,123 @@ async function processMessageQueue(batchId, messages, auth) {
         data: {
           inbox_id: 21571,
           creator_id: 45507,
-          phone_number: formatPhoneNumber(msg.phoneNumber),
-          text: msg.message,
-          local_id: `batch_${batchId}_${Date.now()}`,
-          ...(msg.isPrivate && { private: true }),
-          ...(msg.author && { author: msg.author }),
-          ...(msg.attachments && { media_url: msg.attachments[0] })
+          channel: 'sms',
+          phone_number: phoneNumber.startsWith('1') ? phoneNumber : `1${phoneNumber}`,
+          text: content,
+          local_id: `${batchId}_${Date.now()}`
         },
         timeout: 10000
       };
 
+      console.log('Sending to Heymarket API:', messageConfig);
       const response = await axios(messageConfig);
-
-      results.details.push({
-        phoneNumber: msg.phoneNumber,
-        status: 'success',
-        messageId: response.data.id,
-        timestamp: response.data.created_at || new Date().toISOString()
+      
+      console.log('API Response:', {
+        data: response.data,
+        status: response.status,
+        headers: response.headers
+      });
+      console.log('Message sent successfully:', {
+        messageId: response.data.message?.id || response.data.id,
+        status: response.data.message?.status || response.data.status
+      });
+      
+      // Update message status
+      await batchManager.updateMessageStatus(messageId, 'completed', {
+        phoneNumber,
+        messageId: response.data.message?.id || response.data.id
       });
 
-      results.successful++;
+      // Schedule completion check
+      this.scheduleCompletionCheck(batchId);
+
     } catch (error) {
-      results.details.push({
-        phoneNumber: msg.phoneNumber,
-        status: 'failed',
-        error: error.message,
-        timestamp: new Date().toISOString()
-      });
+      console.error('Error processing message:', error);
 
-      results.failed++;
+      // Get current attempts
+      const { data: log } = await supabase
+        .from('sms_batch_log')
+        .select('attempts')
+        .eq('id', messageId)
+        .single();
+
+      const attempts = (log?.attempts || 0) + 1;
+
+      if (attempts < message.retryStrategy.maxAttempts) {
+        // Schedule retry
+        const timeout = setTimeout(() => {
+          this.retryMessage(message);
+        }, message.retryStrategy.backoffMinutes * 60 * 1000);
+
+        this.retryTimeouts.set(messageId, timeout);
+
+        await batchManager.updateMessageStatus(messageId, 'pending', {
+          error: error.message,
+          attempts
+        });
+      } else {
+        // Mark as failed after max attempts
+        await batchManager.updateMessageStatus(messageId, 'failed', {
+          error: error.message,
+          errorCategory: 'MAX_RETRIES',
+          phoneNumber
+        });
+      }
+
+      // Schedule completion check
+      this.scheduleCompletionCheck(batchId);
+    }
+  }
+
+  /**
+   * Retry a failed message
+   */
+  async retryMessage(message) {
+    const { messageId, batchId } = message;
+    this.retryTimeouts.delete(messageId);
+
+    const queue = this.queues.get(batchId);
+    if (queue) {
+      queue.push(message);
+      if (!this.processing.get(batchId)) {
+        const auth = this.authTokens.get(batchId);
+        if (auth) {
+          await this.processBatch(batchId, auth);
+        }
+      }
+    }
+  }
+
+  /**
+   * Cancel batch processing
+   */
+  async cancelBatch(batchId) {
+    // Clear queue
+    this.queues.delete(batchId);
+    this.processing.delete(batchId);
+    this.authTokens.delete(batchId);
+
+    // Clear any pending retries
+    const batch = await batchManager.getBatch(batchId);
+    batch.results.forEach(result => {
+      const timeout = this.retryTimeouts.get(result.messageId);
+      if (timeout) {
+        clearTimeout(timeout);
+        this.retryTimeouts.delete(result.messageId);
+      }
+    });
+
+    // Clear completion check
+    const completionCheck = this.completionChecks.get(batchId);
+    if (completionCheck) {
+      clearTimeout(completionCheck);
+      this.completionChecks.delete(batchId);
     }
 
-    results.completed++;
-    batchStatus.set(batchId, { ...results, status: 'processing' });
+    // Update status
+    await batchManager.updateStatus(batchId, 'cancelled');
+    emitBatchUpdate(batchId, await batchManager.getBatch(batchId));
   }
-
-  // Update final status
-  batchStatus.set(batchId, { 
-    ...results, 
-    status: 'completed',
-    completedAt: new Date().toISOString()
-  });
-
-  // Clean up old status after 24 hours
-  setTimeout(() => {
-    batchStatus.delete(batchId);
-  }, 24 * 60 * 60 * 1000);
 }
 
-/**
- * Format phone number to E.164 format without plus sign
- */
-function formatPhoneNumber(phoneNumber) {
-  let cleaned = phoneNumber.replace(/\D/g, '');
-  if (cleaned.length === 10) {
-    cleaned = '1' + cleaned;
-  } else if (cleaned.length === 11 && !cleaned.startsWith('1')) {
-    cleaned = '1' + cleaned.substring(1);
-  }
-  return cleaned;
-}
-
-/**
- * Get status of a batch operation
- */
-function getBatchStatus(batchId) {
-  return batchStatus.get(batchId);
-}
-
-/**
- * Start processing a new batch of messages
- */
-function startBatch(messages, auth) {
-  const batchId = `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  processMessageQueue(batchId, messages, auth);
-  return batchId;
-}
-
-export { startBatch, getBatchStatus };
+export const messageQueue = new MessageQueue();

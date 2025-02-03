@@ -44,27 +44,33 @@ export const authenticate = (req, res, next) => {
 /**
  * Adds Heymarket API authentication to outgoing requests
  */
-export const addHeymarketAuth = (req) => {
-  if (!req.apiKey) {
-    throw new Error('No API key available');
+export const addHeymarketAuth = (auth) => {
+  // Handle both object and string formats
+  let creatorId, inboxId;
+
+  if (typeof auth === 'object') {
+    // Old format: { headers: { 'x-creator-id': '...', 'x-inbox-id': '...' } }
+    creatorId = auth.headers?.['x-creator-id'];
+    inboxId = auth.headers?.['x-inbox-id'];
+  } else if (typeof auth === 'string') {
+    // New format: Bearer token string
+    // Use default values since headers aren't passed
+    creatorId = '45507';
+    inboxId = '21571';
+  } else {
+    throw new Error('Invalid auth format');
   }
 
   const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   
   // Log auth details
-  console.log('Auth headers:', {
+  console.log('Adding Heymarket auth headers:', {
     requestId,
-    method: req.method,
-    path: req.path,
-    query: req.query,
-    body: req.body,
     hasApiKey: true,
+    creatorId,
+    inboxId,
     timestamp: new Date().toISOString()
   });
-
-  // Get creator and inbox IDs from request headers
-  const creatorId = req.headers['x-creator-id'];
-  const inboxId = req.headers['x-inbox-id'];
 
   // Use the API key from environment for Heymarket API requests
   return {
@@ -73,8 +79,8 @@ export const addHeymarketAuth = (req) => {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
       'X-Request-Id': requestId,
-      ...(creatorId && { 'X-Creator-Id': creatorId }),
-      ...(inboxId && { 'X-Inbox-Id': inboxId })
+      'X-Creator-Id': creatorId,
+      'X-Inbox-Id': inboxId
     },
     validateStatus: function (status) {
       return status >= 200 && status < 500;

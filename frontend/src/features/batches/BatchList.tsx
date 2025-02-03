@@ -1,6 +1,7 @@
 import React from 'react';
-import { Box, Paper } from '@mui/material';
+import { Box, Paper, Button } from '@mui/material';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
+import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/store';
 import {
   selectBatches,
@@ -17,8 +18,10 @@ import BatchStatusChip from './components/BatchStatusChip';
 import BatchProgress from './components/BatchProgress';
 import BatchActions from './components/BatchActions';
 import { subscribeToBatch, unsubscribeFromBatch } from '@/services/websocket';
+import { Add as AddIcon } from '@mui/icons-material';
 
 export const BatchList: React.FC = () => {
+  const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const batches = useAppSelector(selectBatches);
   const loading = useAppSelector(selectBatchesLoading);
@@ -60,6 +63,10 @@ export const BatchList: React.FC = () => {
     if (page !== currentPage) {
       dispatch(setCurrentPage(page));
     }
+  };
+
+  const handleNewBatch = () => {
+    navigate('/batches/new');
   };
 
   const columns: GridColDef[] = [
@@ -121,7 +128,17 @@ export const BatchList: React.FC = () => {
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <BatchListToolbar />
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <BatchListToolbar />
+        <Button
+          variant="contained"
+          color="primary"
+          startIcon={<AddIcon />}
+          onClick={handleNewBatch}
+        >
+          New Batch
+        </Button>
+      </Box>
 
       <Paper sx={{ flex: 1, m: 2 }}>
         <DataGrid

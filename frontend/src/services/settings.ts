@@ -1,167 +1,172 @@
+import { useState, useEffect } from 'react';
 import { supabase } from './supabase';
 
-const COLUMN_VISIBILITY_KEY = 'sms_column_visibility';
-const SAVED_FILTERS_KEY = 'sms_saved_filters';
-
-export interface ColumnVisibilitySettings {
-  selectedColumns: string[];
-  lastUpdated: string;
+interface SystemSettings {
+  batchProcessing: {
+    rate: number;
+    maxRetries: number;
+    retryDelay: number;
+    maxSize: number;
+  };
+  performance: {
+    slaWarningThreshold: number;
+    slaCriticalThreshold: number;
+    sampleRate: number;
+  };
+  featureFlags: {
+    newBatchSystem: boolean;
+    analyticsDashboard: boolean;
+    performanceMonitoring: boolean;
+  };
+  cache: {
+    previewSize: number;
+    previewTtl: number;
+  };
 }
 
-export const settingsService = {
-  async getColumnVisibility(): Promise<ColumnVisibilitySettings | null> {
+interface NotificationPreferences {
+  user_id: string;
+  email: boolean;
+  slack: boolean;
+  push_notifications: boolean;
+  thresholds: {
+    success_rate: number;
+    error_rate: number;
+    credits_used: number;
+  };
+}
+
+export function useSystemSettings() {
+  const [data, setData] = useState<SystemSettings | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const { data: settings, error: fetchError } = await supabase
+          .from('sms_system_settings')
+          .select('*')
+          .single();
+
+        if (fetchError) throw fetchError;
+
+        setData(settings);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching system settings:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch system settings');
+        setData(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSettings();
+  }, []);
+
+  const updateSettings = async (newSettings: Partial<SystemSettings>) => {
     try {
-      console.log('Fetching column visibility settings...');
-      const { data, error } = await supabase
-        .from('sms_app_settings')
-        .select('value')
-        .eq('key', COLUMN_VISIBILITY_KEY)
-        .single();
+      const { error: updateError } = await supabase
+        .from('sms_system_settings')
+        .update(newSettings)
+        .eq('id', 1);
 
-      if (error) {
-        if (error.code === 'PGRST116') {
-          console.log('No column visibility settings found, will create on first save');
-          return null;
-        }
-        console.error('Error fetching column visibility:', error);
-        return null;
-      }
+      if (updateError) throw updateError;
 
-      console.log('Retrieved column visibility settings:', data?.value);
-      return data?.value as ColumnVisibilitySettings;
-    } catch (error) {
-      console.error('Error in getColumnVisibility:', error);
-      return null;
-    }
-  },
-
-  async saveColumnVisibility(columns: string[]): Promise<boolean> {
-    try {
-      console.log('Saving column visibility:', columns);
-      const settings: ColumnVisibilitySettings = {
-        selectedColumns: columns,
-        lastUpdated: new Date().toISOString()
-      };
-
-      // First try to update
-      const { data: existingData, error: checkError } = await supabase
-        .from('sms_app_settings')
-        .select('key')
-        .eq('key', COLUMN_VISIBILITY_KEY)
-        .single();
-
-      if (checkError && checkError.code !== 'PGRST116') {
-        console.error('Error checking existing settings:', checkError);
-        return false;
-      }
-
-      let result;
-      if (!existingData) {
-        // Insert new record
-        console.log('Inserting new column visibility settings');
-        result = await supabase
-          .from('sms_app_settings')
-          .insert({
-            key: COLUMN_VISIBILITY_KEY,
-            value: settings
-          });
-      } else {
-        // Update existing record
-        console.log('Updating existing column visibility settings');
-        result = await supabase
-          .from('sms_app_settings')
-          .update({ value: settings })
-          .eq('key', COLUMN_VISIBILITY_KEY);
-      }
-
-      if (result.error) {
-        console.error('Error saving column visibility:', result.error);
-        return false;
-      }
-
-      console.log('Column visibility saved successfully');
+      setData(prev => prev ? { ...prev, ...newSettings } : null);
       return true;
-    } catch (error) {
-      console.error('Error in saveColumnVisibility:', error);
+    } catch (err) {
+      console.error('Error updating system settings:', err);
       return false;
     }
-  },
+  };
 
-  async getSavedFilters(): Promise<any[]> {
-    try {
-      console.log('Fetching saved filters...');
-      const { data, error } = await supabase
-        .from('sms_app_settings')
-        .select('value')
-        .eq('key', SAVED_FILTERS_KEY)
-        .single();
+  return {
+    data,
+    loading,
+    error,
+    updateSettings,
+  };
+}
 
-      if (error) {
-        if (error.code === 'PGRST116') {
-          console.log('No saved filters found');
-          return [];
-        }
-        console.error('Error fetching saved filters:', error);
-        return [];
-      }
+// Helper function to get settings without hooks
+export async function getSystemSettings(): Promise<SystemSettings | null> {
+  try {
+    const { data, error } = await supabase
+      .from('sms_system_settings')
+      .select('*')
+      .single();
 
-      console.log('Retrieved saved filters:', data?.value?.filters);
-      return data?.value?.filters || [];
-    } catch (error) {
-      console.error('Error in getSavedFilters:', error);
-      return [];
-    }
-  },
-
-  async saveSavedFilters(filters: any[]): Promise<boolean> {
-    try {
-      console.log('Saving filters:', filters);
-      const settings = {
-        filters,
-        lastUpdated: new Date().toISOString()
-      };
-
-      // First try to update
-      const { data: existingData, error: checkError } = await supabase
-        .from('sms_app_settings')
-        .select('key')
-        .eq('key', SAVED_FILTERS_KEY)
-        .single();
-
-      if (checkError && checkError.code !== 'PGRST116') {
-        console.error('Error checking existing filters:', checkError);
-        return false;
-      }
-
-      let result;
-      if (!existingData) {
-        // Insert new record
-        console.log('Inserting new saved filters');
-        result = await supabase
-          .from('sms_app_settings')
-          .insert({
-            key: SAVED_FILTERS_KEY,
-            value: settings
-          });
-      } else {
-        // Update existing record
-        console.log('Updating existing saved filters');
-        result = await supabase
-          .from('sms_app_settings')
-          .update({ value: settings })
-          .eq('key', SAVED_FILTERS_KEY);
-      }
-
-      if (result.error) {
-        console.error('Error saving filters:', result.error);
-        return false;
-      }
-
-      console.log('Filters saved successfully');
-      return true;
-    } catch (error) {
-      console.error('Error in saveSavedFilters:', error);
-      return false;
-    }
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    console.error('Error getting system settings:', err);
+    return null;
   }
-};
+}
+
+// Notification preferences functions
+export async function getNotificationPreferences(userId: string): Promise<NotificationPreferences | null> {
+  try {
+    const { data, error } = await supabase
+      .from('sms_notification_preferences')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    console.error('Error getting notification preferences:', err);
+    return null;
+  }
+}
+
+export async function updateNotificationPreferences(
+  userId: string,
+  preferences: Partial<NotificationPreferences>
+): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('sms_notification_preferences')
+      .update(preferences)
+      .eq('user_id', userId);
+
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error('Error updating notification preferences:', err);
+    return false;
+  }
+}
+
+// Admin settings functions
+export async function getAdminEmails(): Promise<string[]> {
+  try {
+    const { data, error } = await supabase
+      .from('sms_system_settings')
+      .select('admin_emails')
+      .single();
+
+    if (error) throw error;
+    return data?.admin_emails || [];
+  } catch (err) {
+    console.error('Error getting admin emails:', err);
+    return [];
+  }
+}
+
+export async function getSlackWebhooks(): Promise<string[]> {
+  try {
+    const { data, error } = await supabase
+      .from('sms_slack_webhooks')
+      .select('webhook_url');
+
+    if (error) throw error;
+    return data?.map(d => d.webhook_url) || [];
+  } catch (err) {
+    console.error('Error getting Slack webhooks:', err);
+    return [];
+  }
+}

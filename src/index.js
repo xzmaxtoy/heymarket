@@ -16,7 +16,9 @@ import { authenticate } from './middleware/auth.js';
 import { errorHandler, notFound } from './middleware/error.js';
 import messagesRouter from './routes/messages.js';
 import batchRouter from './routes/batch.js';
+import batchV2Router from './routes/v2/batch.js';
 import customersRouter from './routes/customers.js';
+import notificationsRouter from './routes/v2/notifications.js';
 
 const app = express();
 
@@ -95,6 +97,8 @@ app.use('/api/customers', customersRouter);
 // Authentication middleware for protected API routes
 app.use('/api/messages', authenticate, messagesRouter);
 app.use('/api/batch', authenticate, batchRouter);
+app.use('/api/v2/batch', authenticate, batchV2Router); // Mount v2 batch router
+app.use('/api/v2/notifications', authenticate, notificationsRouter);
 
 // Error handling
 app.use(notFound);
