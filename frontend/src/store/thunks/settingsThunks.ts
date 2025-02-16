@@ -18,6 +18,7 @@ interface FilterConditionSupabase {
   id: string;
   field: string;
   value: any;
+  value2?: any; // Add value2 support
   operator: string;
 }
 
@@ -254,6 +255,7 @@ export const loadSavedFilters = createAsyncThunk(
                 field: condition.field,
                 operator: convertToFrontendOperator(condition.operator),
                 value: condition.value,
+                value2: condition.value2 || null, // Include value2 when loading
               }))
             ),
             operator: filter.groups[0]?.logic === 'AND' ? GridLogicOperator.And : GridLogicOperator.Or,
@@ -303,6 +305,7 @@ export const saveSavedFilters = createAsyncThunk(
                 id: condition.id || crypto.randomUUID(),
                 field: condition.field,
                 value: condition.value,
+                value2: condition.value2, // Include value2 when saving
                 operator: convertToBackendOperator(condition.operator),
               })),
             },

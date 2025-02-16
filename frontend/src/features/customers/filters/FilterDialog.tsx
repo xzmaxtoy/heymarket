@@ -111,10 +111,14 @@ const FilterDialog: React.FC<FilterDialogProps> = ({
 
   const handleLoadFilter = (savedFilter: SavedFilter) => {
     const newFilter: Filter = {
-      conditions: savedFilter.filter.conditions,
+      conditions: savedFilter.filter.conditions.map(c => ({
+        ...c,
+        value2: c.value2 || null // Ensure value2 is handled
+      })),
       operator: savedFilter.filter.operator,
     };
     setCurrentFilter(newFilter);
+    onApply(newFilter); // Apply filter immediately when loaded
   };
 
   return (

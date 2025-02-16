@@ -1,4 +1,4 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, PayloadAction, createAction } from '@reduxjs/toolkit';
 import { Customer } from '@/types/customer';
 import { FilterGroup, SavedFilter } from '@/features/customers/filters/types';
 import { fetchCustomers, selectAllFilteredCustomers } from '../thunks/customerThunks';
@@ -9,6 +9,11 @@ import {
   saveSavedFilters 
 } from '../thunks/settingsThunks';
 import { AppDispatch } from '@/store';
+
+interface SelectionProgress {
+  loaded: number;
+  total: number;
+}
 
 interface CustomersState {
   selectedCustomers: string[];
@@ -22,6 +27,7 @@ interface CustomersState {
   pageSize: number;
   currentPage: number;
   data: Customer[];
+  selectionProgress: SelectionProgress | null;
 }
 
 const initialState: CustomersState = {
@@ -36,6 +42,7 @@ const initialState: CustomersState = {
   pageSize: 10,
   currentPage: 0,
   data: [],
+  selectionProgress: null,
 };
 
 const customersSlice = createSlice({
@@ -102,15 +109,22 @@ const customersSlice = createSlice({
       .addCase(selectAllFilteredCustomers.pending, (state) => {
         state.loading = true;
         state.error = null;
+        state.selectionProgress = { loaded: 0, total: 0 };
       })
       .addCase(selectAllFilteredCustomers.fulfilled, (state, action) => {
         state.loading = false;
         state.selectedCustomers = action.payload.ids;
         state.selectedCustomersData = action.payload.customers;
+        state.selectionProgress = null;
       })
       .addCase(selectAllFilteredCustomers.rejected, (state, action) => {
         state.loading = false;
         state.error = action.error.message || 'Failed to select all customers';
+        state.selectionProgress = null;
+      })
+      // Handle selection progress
+      .addCase(setSelectionProgress, (state, action: PayloadAction<SelectionProgress>) => {
+        state.selectionProgress = action.payload;
       })
       // Handle loadColumnVisibility
       .addCase(loadColumnVisibility.fulfilled, (state, action) => {
@@ -199,8 +213,14 @@ export const selectVisibleColumns = (state: { customers: CustomersState }) =>
 export const selectCustomersLoading = (state: { customers: CustomersState }) => 
   state.customers.loading;
 
+// Action creators
+export const setSelectionProgress = createAction<SelectionProgress>('customers/selectAllProgress');
+
 export const selectCustomersError = (state: { customers: CustomersState }) => 
   state.customers.error;
+
+export const selectSelectionProgress = (state: { customers: CustomersState }) =>
+  state.customers.selectionProgress;
 
 export const selectCustomersTotal = (state: { customers: CustomersState }) => 
   state.customers.total;

@@ -28,7 +28,7 @@ import { Filter, FilterGroup, SavedFilter } from './filters/types';
 import CustomerDataGrid from './components/CustomerDataGrid';
 import ColumnSelector from './components/ColumnSelector';
 import FilterDialog from './filters/FilterDialog';
-import BatchCreationDialog from '../batches/components/BatchCreationDialog';
+import BatchWorkspaceDialog from '../batches/workspace/components/BatchWorkspaceDialog';
 import { GridLogicOperator } from '@mui/x-data-grid';
 
 export const CustomerSelection: React.FC = () => {
@@ -49,7 +49,7 @@ export const CustomerSelection: React.FC = () => {
   const [columnSelectorOpen, setColumnSelectorOpen] = React.useState(false);
   const [filterDialogOpen, setFilterDialogOpen] = React.useState(false);
   const [searchText, setSearchText] = React.useState('');
-  const [batchDialogOpen, setBatchDialogOpen] = React.useState(false);
+  const [batchWorkspaceOpen, setBatchWorkspaceOpen] = React.useState(false);
 
   // Load saved settings and filters
   useEffect(() => {
@@ -154,7 +154,7 @@ export const CustomerSelection: React.FC = () => {
         <Button
           variant="contained"
           startIcon={<SendIcon />}
-          onClick={() => setBatchDialogOpen(true)}
+          onClick={() => setBatchWorkspaceOpen(true)}
           disabled={selectedCustomers.length === 0}
         >
           Create Batch Message
@@ -201,10 +201,19 @@ export const CustomerSelection: React.FC = () => {
         onDeleteFilter={handleDeleteFilter}
       />
 
-      <BatchCreationDialog
-        open={batchDialogOpen}
-        onClose={() => setBatchDialogOpen(false)}
-        selectedCustomers={selectedCustomersData}
+      <BatchWorkspaceDialog
+        open={batchWorkspaceOpen}
+        onClose={() => setBatchWorkspaceOpen(false)}
+        initialState={{
+          selectedCustomers: selectedCustomersData,
+          filterMode: selectedCustomers.length > 0 ? 'direct' : 'filtered',
+          activeFilters: activeFilters,
+          searchText: searchText,
+          selectedTemplate: null,
+          batchName: '',
+          priority: 'normal',
+          step: 'template'
+        }}
       />
     </Box>
   );

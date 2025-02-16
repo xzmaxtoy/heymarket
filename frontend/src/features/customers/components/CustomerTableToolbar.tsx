@@ -9,6 +9,8 @@ import {
   Stack,
   Menu,
   MenuItem,
+  LinearProgress,
+  Typography,
 } from '@mui/material';
 import {
   ViewColumn as ViewColumnIcon,
@@ -19,7 +21,8 @@ import {
 import { GridToolbarContainer, GridToolbarExport } from '@mui/x-data-grid';
 import { Filter, FilterGroup, SavedFilter } from '../filters/types';
 import FilterDialog from '../filters/FilterDialog';
-import { useAppDispatch } from '@/store';
+import { useAppDispatch, useAppSelector } from '@/store';
+import { selectSelectionProgress } from '@/store/slices/customersSlice';
 import { loadSavedFilters } from '@/store/thunks/settingsThunks';
 
 interface CustomerTableToolbarProps {
@@ -49,6 +52,7 @@ export const CustomerTableToolbar: React.FC<CustomerTableToolbarProps> = ({
   totalFilteredCount = 0,
   loading = false,
 }) => {
+  const selectionProgress = useAppSelector(selectSelectionProgress);
   const dispatch = useAppDispatch();
   const [selectionMenuAnchor, setSelectionMenuAnchor] = useState<null | HTMLElement>(null);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
@@ -97,14 +101,27 @@ export const CustomerTableToolbar: React.FC<CustomerTableToolbarProps> = ({
           sx={{ width: 300 }}
         />
 
-        <Box sx={{ flexGrow: 1 }} />
+        <Box sx={{ flexGrow: 1 }}>
+          {selectionProgress && (
+            <Box sx={{ width: '100%', maxWidth: 400, mx: 'auto' }}>
+              <Typography variant="caption" color="text.secondary" align="center" display="block">
+                Selecting customers: {selectionProgress.loaded} of {selectionProgress.total}
+              </Typography>
+              <LinearProgress 
+                variant="determinate" 
+                value={(selectionProgress.loaded / selectionProgress.total) * 100}
+                sx={{ mt: 0.5 }}
+              />
+            </Box>
+          )}
+        </Box>
 
         <Button
           startIcon={<SelectAllIcon />}
           onClick={handleSelectionMenuOpen}
           variant="outlined"
           size="small"
-          disabled={loading || totalFilteredCount === 0}
+          disabled={loading || totalFilteredCount === 0 || !!selectionProgress}
         >
           Select
         </Button>

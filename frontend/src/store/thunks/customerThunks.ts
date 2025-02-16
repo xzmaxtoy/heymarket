@@ -1,7 +1,8 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { supabase } from '@/services/supabase';
 import { Customer } from '@/types/customer';
-import { FilterGroup } from '@/features/customers/filters/types';
+import { FilterGroup, FieldType, FIELD_TYPES } from '@/features/customers/filters/types';
+import { setSelectionProgress } from '@/store/slices/customersSlice';
 
 interface FetchCustomersParams {
   page: number;
@@ -11,8 +12,14 @@ interface FetchCustomersParams {
 }
 
 // Convert our filter groups to Supabase filters
-const convertFiltersToSupabase = (groups: FilterGroup[]) => {
-  return groups.flatMap(group => 
+interface SupabaseFilter {
+  column: string;
+  operator: string;
+  value: string | number | boolean | string[] | null;
+}
+
+const convertFiltersToSupabase = (groups: FilterGroup[]): SupabaseFilter[] => {
+  const filters = groups.flatMap(group => 
     group.conditions.map(condition => {
       const operator = (() => {
         switch (condition.operator) {
@@ -36,7 +43,7 @@ const convertFiltersToSupabase = (groups: FilterGroup[]) => {
         return [
           { column: condition.field, operator: 'gte', value: condition.value },
           { column: condition.field, operator: 'lte', value: condition.value2 }
-        ];
+        ] as SupabaseFilter[];
       }
 
       if (condition.operator === 'startsWith') {
@@ -44,7 +51,7 @@ const convertFiltersToSupabase = (groups: FilterGroup[]) => {
           column: condition.field,
           operator,
           value: `${condition.value}%`
-        };
+        } as SupabaseFilter;
       }
 
       if (condition.operator === 'endsWith') {
@@ -52,15 +59,68 @@ const convertFiltersToSupabase = (groups: FilterGroup[]) => {
           column: condition.field,
           operator,
           value: `%${condition.value}`
-        };
+        } as SupabaseFilter;
       }
 
-      if (condition.operator === 'contains' || condition.operator === 'not_contains') {
+      if (condition.operator === 'contains') {
         return {
           column: condition.field,
           operator,
           value: `%${condition.value}%`
-        };
+        } as SupabaseFilter;
+      }
+
+      if (condition.operator === 'not_contains') {
+        // Handle different field types for not_contains
+        const fieldType = FIELD_TYPES[condition.field];
+        switch (fieldType) {
+          case 'string':
+            // For string fields: include null, empty string, and non-matching values
+            return {
+              column: condition.field,
+              operator: 'or',
+              value: `${condition.field}.is.null,${condition.field}.eq.'',${condition.field}.not.ilike.%${condition.value}%`
+            } as SupabaseFilter;
+          case 'number':
+            // For number fields: include null and non-matching values
+            return {
+              column: condition.field,
+              operator: 'or',
+              value: `${condition.field}.is.null,${condition.field}.neq.${condition.value}`
+            } as SupabaseFilter;
+          case 'date': {
+            // For date fields: include null and non-matching dates
+            if (typeof condition.value === 'string' || typeof condition.value === 'number') {
+              const date = new Date(condition.value);
+              if (!isNaN(date.getTime())) {
+                const dateStr = date.toISOString().split('T')[0];
+                return {
+                  column: condition.field,
+                  operator: 'or',
+                  value: `${condition.field}.is.null,${condition.field}.neq.${dateStr}`
+                } as SupabaseFilter;
+              }
+            }
+            return {
+              column: condition.field,
+              operator: 'not.ilike',
+              value: `%${condition.value}%`
+            } as SupabaseFilter;
+          }
+          case 'boolean':
+            // For boolean fields: include null and opposite value
+            return {
+              column: condition.field,
+              operator: 'or',
+              value: `${condition.field}.is.null,${condition.field}.eq.${!condition.value}`
+            } as SupabaseFilter;
+          default:
+            return {
+              column: condition.field,
+              operator: 'not.ilike',
+              value: `%${condition.value}%`
+            } as SupabaseFilter;
+        }
       }
 
       if (condition.operator === 'in_list') {
@@ -68,7 +128,7 @@ const convertFiltersToSupabase = (groups: FilterGroup[]) => {
           column: condition.field,
           operator,
           value: condition.value?.toString().split('\n').map(v => v.trim()).filter(Boolean)
-        };
+        } as SupabaseFilter;
       }
 
       if (condition.operator === 'is_empty') {
@@ -76,7 +136,7 @@ const convertFiltersToSupabase = (groups: FilterGroup[]) => {
           column: condition.field,
           operator,
           value: null
-        };
+        } as SupabaseFilter;
       }
 
       if (condition.operator === 'is_not_empty') {
@@ -84,16 +144,19 @@ const convertFiltersToSupabase = (groups: FilterGroup[]) => {
           column: condition.field,
           operator,
           value: null
-        };
+        } as SupabaseFilter;
       }
 
-      return {
+      // Handle other operators
+      return condition.value !== null ? {
         column: condition.field,
         operator,
         value: condition.value
-      };
+      } as SupabaseFilter : null;
     })
-  ).flat();
+  ).filter((filter): filter is SupabaseFilter => filter !== null);
+
+  return filters.flat();
 };
 
 export const fetchCustomers = createAsyncThunk(
@@ -109,7 +172,11 @@ export const fetchCustomers = createAsyncThunk(
       // Apply filters
       const supabaseFilters = convertFiltersToSupabase(filters);
       supabaseFilters.forEach(filter => {
-        query = query.filter(filter.column, filter.operator, filter.value);
+        if (filter.operator === 'or' && typeof filter.value === 'string') {
+          query = query.or(filter.value);
+        } else {
+          query = query.filter(filter.column, filter.operator, filter.value);
+        }
       });
 
       // Apply search if provided
@@ -141,34 +208,79 @@ interface SelectAllFilteredResult {
 
 export const selectAllFilteredCustomers = createAsyncThunk(
   'customers/selectAllFiltered',
-  async ({ filters, searchText }: Omit<FetchCustomersParams, 'page' | 'pageSize'>): Promise<SelectAllFilteredResult> => {
+  async (
+    { filters, searchText }: Omit<FetchCustomersParams, 'page' | 'pageSize'>,
+    { dispatch }
+  ): Promise<SelectAllFilteredResult> => {
     try {
-      let query = supabase
+      // First, get total count
+      let countQuery = supabase
         .from('customer')
-        .select('*')
-        .order('date_active', { ascending: false });
+        .select('id', { count: 'exact' });
 
       // Apply filters
       const supabaseFilters = convertFiltersToSupabase(filters);
       supabaseFilters.forEach(filter => {
-        query = query.filter(filter.column, filter.operator, filter.value);
+        if (filter.operator === 'or' && typeof filter.value === 'string') {
+          countQuery = countQuery.or(filter.value);
+        } else {
+          countQuery = countQuery.filter(filter.column, filter.operator, filter.value);
+        }
       });
 
       // Apply search if provided
       if (searchText) {
-        query = query.or(`name.ilike.%${searchText}%,phone.ilike.%${searchText}%`);
+        countQuery = countQuery.or(`name.ilike.%${searchText}%,phone.ilike.%${searchText}%`);
       }
 
-      const { data, error } = await query;
+      const { count, error: countError } = await countQuery;
+      if (countError) throw countError;
 
-      if (error) {
-        throw error;
+      const total = count || 0;
+      const batchSize = 1000; // Supabase's limit
+      const batches = Math.ceil(total / batchSize);
+      let allCustomers: Customer[] = [];
+
+      // Fetch customers in batches
+      for (let batch = 0; batch < batches; batch++) {
+        const start = batch * batchSize;
+        const end = start + batchSize - 1;
+
+        let query = supabase
+          .from('customer')
+          .select('*')
+          .order('date_active', { ascending: false })
+          .range(start, end);
+
+        // Apply filters
+        supabaseFilters.forEach(filter => {
+          if (filter.operator === 'or' && typeof filter.value === 'string') {
+            query = query.or(filter.value);
+          } else {
+            query = query.filter(filter.column, filter.operator, filter.value);
+          }
+        });
+
+        // Apply search if provided
+        if (searchText) {
+          query = query.or(`name.ilike.%${searchText}%,phone.ilike.%${searchText}%`);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        allCustomers = [...allCustomers, ...(data as Customer[])];
+
+        // Update progress
+        dispatch(setSelectionProgress({
+          loaded: allCustomers.length,
+          total
+        }));
       }
 
-      const customers = data as Customer[];
       return {
-        ids: customers.map(customer => customer.id),
-        customers
+        ids: allCustomers.map(customer => customer.id),
+        customers: allCustomers
       };
     } catch (error) {
       console.error('Error selecting all filtered customers:', error);
