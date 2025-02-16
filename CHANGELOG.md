@@ -1,20 +1,29 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+## [Unreleased]
 
-## [2.2.3] - 2025-02-16
+### Added
+- Enhanced timeout handling with progressive timeouts (10s -> 20s -> 30s)
+- Detailed error categorization for message processing
+- Timeout history tracking in message metadata
+- New error categories for better error tracking:
+  * TIMEOUT_10S, TIMEOUT_20S, TIMEOUT_30S
+  * API_ERROR, NETWORK_ERROR, AUTH_ERROR
+- Improved retry mechanism with attempt-specific timeouts
+- Detailed logging of timeout and error patterns
 
 ### Changed
-- Consolidated all feature branches into master
-- Updated branch management documentation
-- Enhanced version control documentation
-- Improved repository structure
+- Updated message processing to use progressive timeouts
+- Enhanced error tracking with specific categories
+- Improved metadata structure for better error history
+- Modified retry logic to use attempt-specific configurations
 
-### Technical Details
-- Updated branch management strategy in docs/VERSIONING.md
-- Cleaned up and organized branch structure
-- Preserved historical branches for reference
-- Maintained master as primary branch
+### Fixed
+- Issue with timeout errors not being properly categorized
+- Problem with all retries using same timeout value
+- Missing tracking of timeout durations and patterns
+
+All notable changes to this project will be documented in this file.
 
 ## [2.2.2] - 2025-02-02
 

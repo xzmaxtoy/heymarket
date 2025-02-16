@@ -5,6 +5,12 @@ import { emitBatchUpdate, emitBatchError, emitBatchComplete } from '../websocket
 import axios from 'axios';
 import config from '../config/config.js';
 import { addHeymarketAuth } from '../middleware/auth.js';
+import { 
+  ERROR_CATEGORIES, 
+  TIMEOUT_CONFIG, 
+  DEFAULT_METADATA,
+  determineErrorCategory 
+} from './errorCategories.js';
 
 class MessageQueue {
   constructor() {
@@ -273,6 +279,10 @@ class MessageQueue {
       if (logError) throw logError;
       if (!log) throw new Error('Message log not found');
 
+      // Get current attempt number and timeout config
+      const attempts = log.attempts || 0;
+      const timeoutConfig = TIMEOUT_CONFIG[`attempt${attempts + 1}`] || TIMEOUT_CONFIG.attempt3;
+
       // Update status to processing
       await batchManager.updateMessageStatus(messageId, 'processing');
 
@@ -286,10 +296,12 @@ class MessageQueue {
         phoneNumber,
         content,
         batchId,
-        messageId
+        messageId,
+        attempt: attempts + 1,
+        timeout: timeoutConfig.timeout
       });
 
-      // Send message
+      // Send message with progressive timeout
       const messageConfig = {
         ...addHeymarketAuth(auth),
         url: `${config.heymarketBaseUrl}/message/send`,
@@ -302,7 +314,7 @@ class MessageQueue {
           text: content,
           local_id: `${batchId}_${Date.now()}`
         },
-        timeout: 10000
+        timeout: timeoutConfig.timeout
       };
 
       console.log('Sending to Heymarket API:', messageConfig);
@@ -339,24 +351,54 @@ class MessageQueue {
 
       const attempts = (log?.attempts || 0) + 1;
 
-      if (attempts < message.retryStrategy.maxAttempts) {
-        // Schedule retry
+      // Get current metadata
+      const currentMetadata = log.metadata || DEFAULT_METADATA;
+      
+      if (attempts < currentMetadata.retryStrategy.maxAttempts) {
+        // Schedule retry with progressive timeout
         const timeout = setTimeout(() => {
           this.retryMessage(message);
-        }, message.retryStrategy.backoffMinutes * 60 * 1000);
+        }, currentMetadata.retryStrategy.backoffMinutes * 60 * 1000);
 
         this.retryTimeouts.set(messageId, timeout);
 
+        // Update status with timeout tracking
         await batchManager.updateMessageStatus(messageId, 'pending', {
           error: error.message,
-          attempts
+          errorCategory: determineErrorCategory(error),
+          attempts,
+          metadata: {
+            ...currentMetadata,
+            timeoutHistory: [
+              ...(currentMetadata.timeoutHistory || []),
+              {
+                attempt: attempts + 1,
+                timeout: timeoutConfig.timeout,
+                error: error.message,
+                timestamp: new Date().toISOString()
+              }
+            ]
+          }
         });
       } else {
         // Mark as failed after max attempts
         await batchManager.updateMessageStatus(messageId, 'failed', {
           error: error.message,
-          errorCategory: 'MAX_RETRIES',
-          phoneNumber
+          errorCategory: ERROR_CATEGORIES.MAX_RETRIES,
+          phoneNumber,
+          metadata: {
+            ...currentMetadata,
+            timeoutHistory: [
+              ...(currentMetadata.timeoutHistory || []),
+              {
+                attempt: attempts + 1,
+                timeout: timeoutConfig.timeout,
+                error: error.message,
+                timestamp: new Date().toISOString(),
+                final: true
+              }
+            ]
+          }
         });
       }
 
