@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Button,
@@ -28,12 +28,16 @@ import {
 import { Template } from '@/types/template';
 import { Customer } from '@/types/customer';
 import { useCustomers } from '../../hooks/useCustomers';
+import { FilterGroup } from '@/features/customers/filters/types';
 
 interface CustomerConfigurationStepProps {
   onConfigure: (customers: Customer[]) => void;
   onBack: () => void;
   selectedCustomers: Customer[];
   template: Template;
+  filterMode?: 'direct' | 'filtered';
+  activeFilters?: FilterGroup[];
+  searchText?: string;
 }
 
 export default function CustomerConfigurationStep({
@@ -41,20 +45,36 @@ export default function CustomerConfigurationStep({
   onBack,
   selectedCustomers,
   template,
+  filterMode = 'direct',
+  activeFilters,
+  searchText,
 }: CustomerConfigurationStepProps) {
   const [selected, setSelected] = useState<Customer[]>(selectedCustomers);
+  const [selectedPages, setSelectedPages] = useState<Set<number>>(new Set());
   const { customers, loading, error, totalCount, page, setPage, pageSize, search, setSearch } = useCustomers({
     pageSize: 10,
+    activeFilters,
+    searchText,
+    filterMode
   });
+
+  // Track which pages have been loaded and selected
+  useEffect(() => {
+    if (!loading && customers.length > 0) {
+      setSelectedPages(prev => new Set(prev).add(page));
+    }
+  }, [loading, customers, page]);
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearch(event.target.value);
+    setSelectedPages(new Set()); // Reset selected pages on new search
   };
 
   const handlePageChange = (event: unknown, newPage: number) => {
     setPage(newPage + 1);
   };
 
+  // Handle select all for current page
   const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.checked) {
       const newSelected = [...selected];
@@ -67,6 +87,13 @@ export default function CustomerConfigurationStep({
     } else {
       const customerIds = customers.map(c => c.id);
       setSelected(selected.filter(s => !customerIds.includes(s.id)));
+    }
+  };
+
+  // Handle select all filtered customers
+  const handleSelectAllFiltered = () => {
+    if (filterMode === 'filtered' && customers.length > 0) {
+      setSelected(customers);
     }
   };
 
@@ -89,6 +116,13 @@ export default function CustomerConfigurationStep({
 
   const isSelected = (customer: Customer) => selected.some(s => s.id === customer.id);
 
+  const isAllSelected = customers.length > 0 && 
+    customers.every(customer => selected.some(s => s.id === customer.id));
+
+  const isIndeterminate = selected.length > 0 && 
+    customers.some(customer => selected.some(s => s.id === customer.id)) &&
+    !isAllSelected;
+
   if (error) {
     return (
       <Box sx={{ p: 3 }}>
@@ -100,26 +134,53 @@ export default function CustomerConfigurationStep({
   return (
     <Box>
       <Box sx={{ mb: 3 }}>
-        <Stack direction="row" spacing={2} alignItems="center">
-          <TextField
-            fullWidth
-            variant="outlined"
-            placeholder="Search customers..."
-            value={search}
-            onChange={handleSearchChange}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-            }}
-          />
-          <Chip
-            label={`${selected.length} selected`}
-            color="primary"
-            onDelete={selected.length > 0 ? () => setSelected([]) : undefined}
-          />
+        <Stack spacing={2}>
+          <Stack direction="row" spacing={2} alignItems="center">
+            <TextField
+              fullWidth
+              variant="outlined"
+              placeholder="Search customers..."
+              value={search}
+              onChange={handleSearchChange}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <Chip
+              label={`${selected.length} selected`}
+              color="primary"
+              onDelete={selected.length > 0 ? () => setSelected([]) : undefined}
+            />
+          </Stack>
+          
+          {filterMode === 'filtered' && activeFilters && activeFilters.length > 0 && (
+            <>
+              <Alert 
+                severity="info"
+                action={
+                  <Button
+                    color="inherit"
+                    size="small"
+                    onClick={handleSelectAllFiltered}
+                    disabled={loading || customers.length === 0}
+                  >
+                    Select All Filtered
+                  </Button>
+                }
+              >
+                Using filters from customer tab. {totalCount} customers match the current filters.
+              </Alert>
+              {selectedPages.size > 0 && (
+                <Typography variant="caption" color="text.secondary">
+                  Selected customers from {selectedPages.size} page(s). Navigate through pages to select more customers.
+                </Typography>
+              )}
+            </>
+          )}
         </Stack>
       </Box>
 
@@ -129,8 +190,8 @@ export default function CustomerConfigurationStep({
             <TableRow>
               <TableCell padding="checkbox">
                 <Checkbox
-                  indeterminate={selected.length > 0 && selected.length < customers.length}
-                  checked={customers.length > 0 && selected.length === customers.length}
+                  indeterminate={isIndeterminate}
+                  checked={isAllSelected}
                   onChange={handleSelectAll}
                 />
               </TableCell>

@@ -19,28 +19,41 @@ class MessageQueue {
 
   /**
    * Add messages to queue for a batch
+   * @param {Array} messages - Array of messages to add
+   * @param {Object} options - Options for batch processing
+   * @param {boolean} options.autoStart - Whether to start processing immediately
+   * @param {Object} options.auth - Auth details if autoStart is true
    */
-  async addBatch(messages) {
+  async addBatch(messages, options = {}) {
     const batchId = messages[0]?.batchId;
     if (!batchId) return;
 
     // Initialize queue if not exists
     if (!this.queues.has(batchId)) {
-      this.queues.set(batchId, []);
+      this.queues.set(batchId, new Map()); // Use Map to track messages by ID
       this.processing.set(batchId, false);
     }
 
-    // Add messages to queue
+    // Add messages to queue, deduplicating by messageId
     const queue = this.queues.get(batchId);
-    queue.push(...messages);
+    messages.forEach(msg => {
+      if (!queue.has(msg.messageId)) {
+        queue.set(msg.messageId, msg);
+      }
+    });
 
-    console.log(`Added ${messages.length} messages to queue for batch ${batchId}`);
+    console.log(`Added ${messages.length} messages to queue for batch ${batchId} (${queue.size} unique)`);
 
     // Update pending count
     await batchManager.updateProgress(batchId, {
-      pending: queue.length,
+      pending: queue.size,
       processing: 0
     });
+
+    // Auto-start if requested and not already processing
+    if (options.autoStart && options.auth && !this.processing.get(batchId)) {
+      await this.processBatch(batchId, options.auth);
+    }
   }
 
   /**
@@ -49,6 +62,12 @@ class MessageQueue {
   async processBatch(batchId, auth) {
     if (!this.queues.has(batchId)) {
       console.log(`No messages in queue for batch ${batchId}`);
+      return;
+    }
+
+    // Check if already processing
+    if (this.processing.get(batchId)) {
+      console.log(`Batch ${batchId} is already being processed`);
       return;
     }
 
@@ -76,19 +95,23 @@ class MessageQueue {
       });
 
       // Otherwise use new system
-      while (queue.length > 0) {
+      const messages = Array.from(queue.values());
+      while (messages.length > 0) {
         // Process messages in chunks
-        const chunk = queue.splice(0, this.concurrency);
+        const chunk = messages.splice(0, this.concurrency);
         await Promise.all(chunk.map(msg => this.processMessage(msg)));
 
         // Update progress after each chunk
-        if (queue.length > 0) {
+        if (messages.length > 0) {
           await batchManager.updateProgress(batchId, {
-            pending: queue.length,
-            processing: Math.min(queue.length, this.concurrency)
+            pending: messages.length,
+            processing: Math.min(messages.length, this.concurrency)
           });
         }
       }
+
+      // Clear processed messages from queue
+      queue.clear();
 
       // Schedule completion check
       this.scheduleCompletionCheck(batchId);
@@ -132,21 +155,37 @@ class MessageQueue {
     try {
       console.log(`Checking completion status for batch ${batchId}`);
 
-      // Get all message statuses
-      const { data: logs, error: logsError } = await supabase
-        .from('sms_batch_log')
-        .select('status')
-        .eq('batch_id', batchId);
+      // Initialize for pagination
+      let allLogs = [];
+      let page = 0;
+      const pageSize = 1000;
 
-      if (logsError) throw logsError;
+      // Fetch all logs with pagination
+      while (true) {
+        console.log(`Fetching page ${page} for batch ${batchId}`);
+        const { data, error } = await supabase
+          .from('sms_batch_log')
+          .select('status')
+          .eq('batch_id', batchId)
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        
+        allLogs = allLogs.concat(data);
+        console.log(`Retrieved ${data.length} records, total so far: ${allLogs.length}`);
+        
+        if (data.length < pageSize) break;
+        page++;
+      }
 
       // Count statuses
-      const counts = logs.reduce((acc, log) => {
+      const counts = allLogs.reduce((acc, log) => {
         acc[log.status] = (acc[log.status] || 0) + 1;
         return acc;
       }, {});
 
-      const total = logs.length;
+      const total = allLogs.length;
       const completed = counts.completed || 0;
       const failed = counts.failed || 0;
       const pending = counts.pending || 0;
@@ -334,8 +373,8 @@ class MessageQueue {
     this.retryTimeouts.delete(messageId);
 
     const queue = this.queues.get(batchId);
-    if (queue) {
-      queue.push(message);
+    if (queue && !queue.has(message.messageId)) {
+      queue.set(message.messageId, message);
       if (!this.processing.get(batchId)) {
         const auth = this.authTokens.get(batchId);
         if (auth) {

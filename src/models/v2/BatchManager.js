@@ -154,16 +154,33 @@ class BatchManager {
       if (batchError) throw batchError;
       if (!batch) throw new Error('Batch not found');
 
-      // Get logs
-      const { data: logs, error: logsError } = await supabase
-        .from('sms_batch_log')
-        .select('*')
-        .eq('batch_id', batchId);
+      // Get logs with pagination
+      let allLogs = [];
+      let page = 0;
+      const pageSize = 1000;
 
-      if (logsError) throw logsError;
+      while (true) {
+        console.log(`Fetching batch logs page ${page} for batch ${batchId}`);
+        const { data, error } = await supabase
+          .from('sms_batch_log')
+          .select('*')
+          .eq('batch_id', batchId)
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        
+        allLogs = allLogs.concat(data);
+        console.log(`Retrieved ${data.length} logs, total so far: ${allLogs.length}`);
+        
+        if (data.length < pageSize) break;
+        page++;
+      }
+
+      if (allLogs.length === 0) throw new Error('No messages found for batch');
 
       // Get first log to get template info
-      const templateLog = logs[0];
+      const templateLog = allLogs[0];
       if (!templateLog) throw new Error('No messages found for batch');
 
       // Format response to match existing implementation
@@ -196,7 +213,7 @@ class BatchManager {
           text: templateLog.message,
           variables: Object.keys(templateLog.variables || {})
         },
-        results: logs.map(log => ({
+        results: allLogs.map(log => ({
           phoneNumber: log.targets,
           status: log.status,
           messageId: log.heymarket_message_id,
@@ -361,18 +378,34 @@ class BatchManager {
 
       if (batchError) throw batchError;
 
-      const { data: logs, error: logsError } = await supabase
-        .from('sms_batch_log')
-        .select('*')
-        .eq('batch_id', batchId);
+      // Get logs with pagination
+      let allLogs = [];
+      let page = 0;
+      const pageSize = 1000;
 
-      if (logsError) throw logsError;
+      while (true) {
+        console.log(`Fetching analytics logs page ${page} for batch ${batchId}`);
+        const { data, error } = await supabase
+          .from('sms_batch_log')
+          .select('*')
+          .eq('batch_id', batchId)
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        
+        allLogs = allLogs.concat(data);
+        console.log(`Retrieved ${data.length} logs for analytics, total so far: ${allLogs.length}`);
+        
+        if (data.length < pageSize) break;
+        page++;
+      }
 
       const analytics = {
-        total: logs.length,
-        completed: logs.filter(log => log.status === 'completed').length,
-        failed: logs.filter(log => log.status === 'failed').length,
-        pending: logs.filter(log => log.status === 'pending').length,
+        total: allLogs.length,
+        completed: allLogs.filter(log => log.status === 'completed').length,
+        failed: allLogs.filter(log => log.status === 'failed').length,
+        pending: allLogs.filter(log => log.status === 'pending').length,
         success_rate: 0,
         error_categories: {}
       };
@@ -383,7 +416,7 @@ class BatchManager {
       }
 
       // Aggregate error categories
-      logs
+      allLogs
         .filter(log => log.status === 'failed')
         .forEach(log => {
           const category = log.error_category || 'unknown';

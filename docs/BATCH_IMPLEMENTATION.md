@@ -19,6 +19,13 @@ This document outlines the implementation of an optimized batch message creation
    - Added pagination support
    - Added search functionality
    - Fixed sorting by date_create
+   - Added advanced filtering with proper null/empty handling:
+     - String fields: includes null, empty, and non-matching values
+     - Number fields: includes null and non-matching values
+     - Date fields: includes null and non-matching dates with YYYY-MM-DD format
+     - Boolean fields: includes null and opposite values
+   - Unified filter handling between customer page and batch creation
+   - Added type-safe filter conversion for Supabase queries
 
 3. Frontend Components
    - Implemented BatchWorkspace component
@@ -147,6 +154,8 @@ frontend/src/features/
    - Finish preview system
    - Add batch processing
    - Implement error handling
+   - Add advanced customer filtering
+   - Unify filter handling across components
 
 3. Phase 3: Advanced Features (2-3 weeks) 🚧
    - Implement notification search
@@ -230,7 +239,13 @@ sequenceDiagram
 
 ### Next Steps
 
-1. Testing & Validation
+1. Customer Management Improvements
+   - Add saved filter management
+   - Add filter sharing between users
+   - Add filter templates for common scenarios
+   - Add filter import/export functionality
+
+2. Testing & Validation
    - Add unit tests for batch processing
    - Add integration tests for status updates
    - Add error scenario testing

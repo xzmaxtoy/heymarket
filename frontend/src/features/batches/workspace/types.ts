@@ -15,7 +15,14 @@ export interface BatchWorkspaceState {
       variables: Record<string, string>;
     }[];
   };
+  // Filter state
+  filterMode: 'direct' | 'filtered';
+  activeFilters?: FilterGroup[];
+  searchText?: string;
 }
+
+// Import filter types
+import { FilterGroup } from '@/features/customers/filters/types';
 
 export interface BatchValidationResult {
   isValid: boolean;

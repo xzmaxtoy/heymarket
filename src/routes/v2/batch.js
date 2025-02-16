@@ -12,36 +12,39 @@ const router = express.Router();
  */
 router.post('/', async (req, res) => {
   try {
-    const { batchId, templateId, recipients, options } = req.body;
+    const { batchId, options } = req.body;
 
-    // Get batch from Supabase
-    const { data: batch, error: batchError } = await supabase
-      .from('sms_batches')
-      .select('*')
-      .eq('id', batchId)
-      .single();
+    // Get batch and logs in parallel
+    const [batchResult, logsResult] = await Promise.all([
+      supabase
+        .from('sms_batches')
+        .select('*')
+        .eq('id', batchId)
+        .single(),
+      supabase
+        .from('sms_batch_log')
+        .select('*')
+        .eq('batch_id', batchId)
+    ]);
 
-    if (batchError) {
+    if (batchResult.error) {
       return res.status(404).json({
         success: false,
         error: 'Batch not found',
-        message: batchError.message
+        message: batchResult.error.message
       });
     }
 
-    // Get batch logs
-    const { data: logs, error: logsError } = await supabase
-      .from('sms_batch_log')
-      .select('*')
-      .eq('batch_id', batchId);
-
-    if (logsError) {
+    if (logsResult.error) {
       return res.status(500).json({
         success: false,
         error: 'Failed to get batch logs',
-        message: logsError.message
+        message: logsResult.error.message
       });
     }
+
+    const batch = batchResult.data;
+    const logs = logsResult.data;
 
     // Create messages from logs
     const messages = logs.map(log => ({
@@ -49,22 +52,28 @@ router.post('/', async (req, res) => {
       messageId: log.id,
       phoneNumber: log.targets,
       variables: log.variables,
-      retryStrategy: options.retryStrategy || {
+      retryStrategy: options?.retryStrategy || {
         maxAttempts: 3,
         backoffMinutes: 5
       }
     }));
 
-    // Add messages to queue
-    await messageQueue.addBatch(messages);
+    // Add messages to queue with auto-start if requested
+    const auth = {
+      apiKey: req.apiKey,
+      headers: req.headers
+    };
+    await messageQueue.addBatch(messages, {
+      autoStart: options?.autoStart,
+      auth
+    });
 
-    // If autoStart is true, start processing
-    if (options.autoStart) {
-      const auth = {
-        apiKey: req.apiKey,
-        headers: req.headers
-      };
-      await messageQueue.processBatch(batchId, auth);
+    // Update batch status if needed
+    if (options?.scheduleTime) {
+      await supabase
+        .from('sms_batches')
+        .update({ scheduled_for: options.scheduleTime })
+        .eq('id', batchId);
     }
 
     return res.status(201).json({
@@ -104,51 +113,14 @@ router.post('/:batchId/resume', async (req, res) => {
       });
     }
 
-    // Get batch logs from Supabase
-    const { data: logs, error: logsError } = await supabase
-      .from('sms_batch_log')
-      .select('*')
-      .eq('batch_id', batchId)
-      .eq('status', 'pending');
-
-    if (logsError) {
-      throw new Error(`Failed to get batch logs: ${logsError.message}`);
-    }
-
-    if (!logs || logs.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'No pending messages found for batch'
-      });
-    }
-
     // Update status to processing
     await batchManager.updateStatus(batchId, 'processing');
 
-    // Create messages from logs
-    const messages = logs.map(log => ({
-      batchId,
-      messageId: log.id,
-      phoneNumber: log.targets,
-      variables: log.variables,
-      retryStrategy: {
-        maxAttempts: 3,
-        backoffMinutes: 5
-      }
-    }));
-
-    console.log(`Adding ${messages.length} messages to queue for batch ${batchId}`);
-
-    // Add messages to queue
-    await messageQueue.addBatch(messages);
-
-    // Pass auth headers
+    // Start processing with auth
     const auth = {
       apiKey: req.apiKey,
       headers: req.headers
     };
-
-    // Start processing with auth
     await messageQueue.processBatch(batchId, auth);
 
     return res.json({

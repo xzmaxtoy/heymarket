@@ -46,14 +46,21 @@ const defaultSettings = {
   },
 };
 
-export default function BatchWorkspace() {
-  const [state, setState] = useState<BatchWorkspaceState>({
-    selectedCustomers: [],
-    selectedTemplate: null,
-    batchName: '',
-    priority: 'normal',
-    step: 'template'
-  });
+interface BatchWorkspaceProps {
+  initialState?: BatchWorkspaceState;
+}
+
+const defaultState: BatchWorkspaceState = {
+  selectedCustomers: [],
+  selectedTemplate: null,
+  batchName: '',
+  priority: 'normal',
+  step: 'template',
+  filterMode: 'direct',
+};
+
+export default function BatchWorkspace({ initialState }: BatchWorkspaceProps) {
+  const [state, setState] = useState<BatchWorkspaceState>(initialState || defaultState);
 
   const { data: settings, loading: settingsLoading, error: settingsError } = useSystemSettings();
   const { isEnabled: useNewPreview } = useFeatureFlag(FEATURE_FLAGS.NEW_PREVIEW_SYSTEM);
@@ -112,6 +119,9 @@ export default function BatchWorkspace() {
             onBack={handleBack}
             selectedCustomers={state.selectedCustomers}
             template={state.selectedTemplate!}
+            filterMode={state.filterMode}
+            activeFilters={state.activeFilters}
+            searchText={state.searchText}
           />
         );
       case 'preview':
