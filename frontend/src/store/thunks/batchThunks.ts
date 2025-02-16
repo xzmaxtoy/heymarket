@@ -198,14 +198,12 @@ export const createBatch = createAsyncThunk(
       await createBatchLogs(batchRecord.id, batchDataWithValidCustomers);
       console.log('Batch logs created in Supabase');
 
-      // Create batch in backend
+      // Initialize batch in backend
       try {
-        console.log('Creating batch in backend API');
+        console.log('Initializing batch in backend API');
 
         await api.post('/api/v2/batch', {
           batchId: batchRecord.id,
-          templateId: batchData.template?.id,
-          recipients,
           options: {
             scheduleTime: batchData.scheduledFor,
             priority: 'normal',
@@ -217,10 +215,10 @@ export const createBatch = createAsyncThunk(
           },
         });
 
-        console.log('Batch created in backend API');
+        console.log('Batch initialized in backend API');
       } catch (error) {
         // Log but don't throw backend errors since Supabase operations succeeded
-        console.error('Error creating batch in backend (continuing):', error);
+        console.error('Error initializing batch in backend (continuing):', error);
       }
 
       return batchRecord;
