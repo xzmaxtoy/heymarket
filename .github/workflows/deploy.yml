@@ -21,6 +21,49 @@ jobs:
             cd /root/heymarket
             git pull origin main
             
+            # Update environment variables
+            cat > .env << EOL
+            PORT=3000
+            NODE_ENV=production
+            CORS_ORIGIN=http://${{ secrets.DROPLET_IP }}
+            
+            # API Keys
+            HEYMARKET_API_KEY=${{ secrets.HEYMARKET_API_KEY }}
+            EMPLOYEE_LIST_URL=${{ secrets.EMPLOYEE_LIST_URL }}
+            
+            # Supabase Configuration
+            SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+            SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
+            SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+            
+            # Batch Processing Configuration
+            BATCH_PROCESSING_RATE=5
+            BATCH_MAX_RETRIES=3
+            BATCH_RETRY_DELAY=300000
+            BATCH_CLEANUP_INTERVAL=3600000
+            BATCH_MAX_SIZE=10000
+            
+            # Performance Monitoring
+            ENABLE_PERFORMANCE_MONITORING=true
+            PERFORMANCE_SAMPLE_RATE=100
+            SLA_WARNING_THRESHOLD=900000
+            SLA_CRITICAL_THRESHOLD=1800000
+            
+            # Feature Flags
+            FEATURE_FLAG_NEW_BATCH_SYSTEM=true
+            FEATURE_FLAG_ANALYTICS_DASHBOARD=true
+            FEATURE_FLAG_PERFORMANCE_MONITORING=true
+            
+            # Logging Configuration
+            LOG_LEVEL=info
+            LOG_FORMAT=json
+            ENABLE_REQUEST_LOGGING=true
+            
+            # Cache Configuration
+            PREVIEW_CACHE_SIZE=1000
+            PREVIEW_CACHE_TTL=3600
+            EOL
+            
             # Build and deploy with Docker
             docker-compose down
             docker system prune -f
