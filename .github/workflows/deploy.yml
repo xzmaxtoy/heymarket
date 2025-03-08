@@ -11,49 +11,28 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      # Combined deployment steps to reduce SSH connection overhead
-      - name: Deploy to DigitalOcean
+      # Upload deployment script
+      - name: Upload deployment script
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "scripts/deploy.sh"
+          target: "/root"
+          overwrite: true
+
+      # Create environment file
+      - name: Create environment file
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.DROPLET_IP }}
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          timeout: 45m  # Reduced timeout
+          timeout: 5m
           script: |
-            echo "=== STEP 1: Updating repository ==="
-            # Check if directory exists, if not create it
-            if [ ! -d "/root/heymarket" ]; then
-              echo "Directory not found, creating..."
-              mkdir -p /root/heymarket
-              cd /root/heymarket
-              git clone --depth=1 https://github.com/xzmaxtoy/heymarket.git .
-            else
-              cd /root/heymarket
-              # Try to pull with retries
-              for i in {1..3}; do
-                echo "Attempt $i: Pulling latest code..."
-                git config --global http.sslVerify false
-                if git pull origin main; then
-                  echo "Pull successful!"
-                  break
-                else
-                  echo "Pull failed, retrying in 5 seconds..."
-                  sleep 5
-                fi
-                
-                if [ $i -eq 3 ]; then
-                  echo "All pull attempts failed. Trying to clone fresh..."
-                  cd /root
-                  rm -rf heymarket
-                  git clone --depth=1 https://github.com/xzmaxtoy/heymarket.git
-                  cd heymarket
-                fi
-              done
-            fi
-            
-            echo "=== STEP 2: Updating environment variables ==="
-            # Update environment variables
-            cat > .env << EOL
+            mkdir -p /root/heymarket
+            cat > /root/heymarket/.env << EOL
             PORT=3000
             NODE_ENV=production
             CORS_ORIGIN=http://${{ secrets.DROPLET_IP }}
@@ -94,51 +73,16 @@ jobs:
             PREVIEW_CACHE_SIZE=1000
             PREVIEW_CACHE_TTL=3600
             EOL
-            echo "Environment variables updated successfully."
+            echo "Environment variables created successfully."
 
-            echo "=== STEP 3: Stopping running containers ==="
-            cd /root/heymarket
-            docker-compose down || echo "No containers to stop"
-            echo "Containers stopped successfully."
-
-            echo "=== STEP 4: Cleaning up Docker system ==="
-            # Faster selective cleanup
-            docker image prune -f --filter "until=24h" &
-            docker container prune -f &
-            docker network prune -f &
-            wait
-            echo "Docker system cleaned up."
-
-            echo "=== STEP 5: Building Docker images ==="
-            cd /root/heymarket
-            # Enable BuildKit for faster builds
-            export DOCKER_BUILDKIT=1
-            export COMPOSE_DOCKER_CLI_BUILD=1
-            # Use build cache for efficiency
-            docker-compose build --parallel
-            echo "Docker images built successfully."
-
-            echo "=== STEP 6: Starting containers ==="
-            cd /root/heymarket
-            docker-compose up -d
-            echo "Containers started successfully."
-
-            echo "=== STEP 7: Verifying deployment ==="
-            # Wait for container to be healthy
-            echo "Waiting for container to be ready..."
-            for i in {1..30}; do
-              if curl -s http://localhost/health > /dev/null; then
-                echo "Application is healthy!"
-                break
-              fi
-              echo "Waiting for application to start... ($i/30)"
-              sleep 2
-            done
-            
-            docker-compose ps
-            docker-compose logs --tail=10
-            
-            # Check if the application is responding
-            echo "Checking application health..."
-            curl -s http://localhost/health || echo "Health check failed"
-            echo "Deployment verification complete."
+      # Run deployment script
+      - name: Run deployment script
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          timeout: 45m
+          script: |
+            chmod +x /root/scripts/deploy.sh
+            /root/scripts/deploy.sh
