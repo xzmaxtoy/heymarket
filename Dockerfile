@@ -20,6 +20,7 @@ WORKDIR /app
 COPY --from=backend-builder /app/node_modules ./node_modules
 COPY --from=backend-builder /app/src ./src
 COPY --from=backend-builder /app/package*.json ./
+COPY --from=backend-builder /app/api-docs.yaml ./
 COPY --from=frontend-builder /app/frontend/dist ./src/public
 EXPOSE 3000
 CMD ["npm", "start"]
