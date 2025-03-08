@@ -5,7 +5,24 @@ apt-get update
 apt-get upgrade -y
 
 # Install required packages
-apt-get install -y curl git
+apt-get install -y curl git apt-transport-https ca-certificates gnupg lsb-release
+
+# Install Docker if not already installed
+if ! command -v docker &> /dev/null; then
+    echo "Installing Docker..."
+    curl -fsSL https://get.docker.com -o get-docker.sh
+    sh get-docker.sh
+    systemctl enable docker
+    systemctl start docker
+fi
+
+# Install Docker Compose if not already installed
+if ! command -v docker-compose &> /dev/null; then
+    echo "Installing Docker Compose..."
+    curl -L "https://github.com/docker/compose/releases/download/v2.20.3/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    chmod +x /usr/local/bin/docker-compose
+    ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+fi
 
 # Clone repository
 cd /root
