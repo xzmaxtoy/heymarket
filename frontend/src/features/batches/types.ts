@@ -3,7 +3,7 @@ import { Customer } from '@/types/customer';
 import { Dayjs } from 'dayjs';
 import { ChipProps } from '@mui/material';
 
-export type BatchStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+export type BatchStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'paused';
 
 type ChipColor = NonNullable<ChipProps['color']>;
 
@@ -13,6 +13,7 @@ export const BATCH_STATUS_COLORS: Record<BatchStatus, ChipColor> = {
   completed: 'success',
   failed: 'error',
   cancelled: 'default',
+  paused: 'warning'
 } as const;
 
 export const BATCH_STATUS_LABELS: Record<BatchStatus, string> = {
@@ -21,6 +22,7 @@ export const BATCH_STATUS_LABELS: Record<BatchStatus, string> = {
   completed: 'Completed',
   failed: 'Failed',
   cancelled: 'Cancelled',
+  paused: 'Paused'
 } as const;
 
 export interface BatchError {

@@ -39,10 +39,26 @@ export const TemplateDataGrid: React.FC<TemplateDataGridProps> = ({
       minWidth: 200,
     },
     {
-      field: 'description',
-      headerName: 'Description',
+      field: 'content',
+      headerName: 'Content',
       flex: 2,
       minWidth: 300,
+      renderCell: (params: GridRenderCellParams<Template>) => (
+        <Typography
+          variant="body2"
+          sx={{
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word'
+          }}
+        >
+          {params.value}
+        </Typography>
+      ),
     },
     {
       field: 'variables',

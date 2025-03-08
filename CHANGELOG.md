@@ -1,28 +1,5 @@
 # Changelog
 
-## [Unreleased]
-
-### Added
-- Enhanced timeout handling with progressive timeouts (10s -> 20s -> 30s)
-- Detailed error categorization for message processing
-- Timeout history tracking in message metadata
-- New error categories for better error tracking:
-  * TIMEOUT_10S, TIMEOUT_20S, TIMEOUT_30S
-  * API_ERROR, NETWORK_ERROR, AUTH_ERROR
-- Improved retry mechanism with attempt-specific timeouts
-- Detailed logging of timeout and error patterns
-
-### Changed
-- Updated message processing to use progressive timeouts
-- Enhanced error tracking with specific categories
-- Improved metadata structure for better error history
-- Modified retry logic to use attempt-specific configurations
-
-### Fixed
-- Issue with timeout errors not being properly categorized
-- Problem with all retries using same timeout value
-- Missing tracking of timeout durations and patterns
-
 All notable changes to this project will be documented in this file.
 
 ## [2.2.2] - 2025-02-02

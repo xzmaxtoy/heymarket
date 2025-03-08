@@ -91,6 +91,53 @@ router.post('/', async (req, res) => {
 });
 
 /**
+ * Pause batch processing
+ */
+router.post('/:batchId/pause', async (req, res) => {
+  try {
+    const { batchId } = req.params;
+
+    if (!batchValidator.isValidBatchId(batchId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid batch ID'
+      });
+    }
+
+    // Get batch
+    const batch = await batchManager.getBatch(batchId);
+    if (!batch) {
+      return res.status(404).json({
+        success: false,
+        error: 'Batch not found'
+      });
+    }
+
+    if (batch.status !== 'processing') {
+      return res.status(400).json({
+        success: false,
+        error: 'Can only pause processing batches'
+      });
+    }
+
+    // Pause batch processing
+    await messageQueue.pauseBatch(batchId);
+
+    return res.json({
+      success: true,
+      message: 'Batch paused successfully'
+    });
+  } catch (error) {
+    console.error('Error pausing batch:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to pause batch',
+      message: error.message
+    });
+  }
+});
+
+/**
  * Resume/start batch processing
  */
 router.post('/:batchId/resume', async (req, res) => {
@@ -116,12 +163,15 @@ router.post('/:batchId/resume', async (req, res) => {
     // Update status to processing
     await batchManager.updateStatus(batchId, 'processing');
 
-    // Start processing with auth
+    // Resume batch processing with auth
     const auth = {
-      apiKey: req.apiKey,
-      headers: req.headers
+      apiKey: req.body.auth?.apiKey || req.apiKey,
+      headers: {
+        'x-inbox-id': req.body.auth?.headers?.['x-inbox-id'] || req.headers['x-inbox-id'],
+        'x-creator-id': req.body.auth?.headers?.['x-creator-id'] || req.headers['x-creator-id']
+      }
     };
-    await messageQueue.processBatch(batchId, auth);
+    await messageQueue.resumeBatch(batchId, auth);
 
     return res.json({
       success: true,

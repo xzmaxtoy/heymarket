@@ -9,13 +9,16 @@ import {
   Select,
   MenuItem,
   OutlinedInput,
-  Chip,
+  Collapse,
+  useTheme,
+  useMediaQuery,
   SelectChangeEvent,
 } from '@mui/material';
 import {
   Search as SearchIcon,
   FilterList as FilterListIcon,
   Clear as ClearIcon,
+  ExpandMore as ExpandMoreIcon,
 } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { selectBatchesFilter, setFilter } from '@/store/slices/batchesSlice';
@@ -26,6 +29,9 @@ export const BatchListToolbar: React.FC = () => {
   const dispatch = useAppDispatch();
   const filter = useAppSelector(selectBatchesFilter);
   const [searchInput, setSearchInput] = React.useState(filter.search || '');
+  const [filtersExpanded, setFiltersExpanded] = React.useState(false);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchInput(event.target.value);
@@ -60,70 +66,103 @@ export const BatchListToolbar: React.FC = () => {
     }
   };
 
+  const toggleFilters = () => {
+    setFiltersExpanded(!filtersExpanded);
+  };
+
   return (
     <Box sx={{ 
-      p: 2, 
-      display: 'flex', 
-      alignItems: 'center', 
-      gap: 2,
-      flexWrap: 'wrap',
+      width: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 2
     }}>
-      {/* Search Field */}
-      <Box sx={{ 
-        display: 'flex', 
+      {/* Top Row - Search and Filter Toggle */}
+      <Box sx={{
+        display: 'flex',
         alignItems: 'center',
-        flex: 1,
-        minWidth: 200,
+        gap: 1
       }}>
-        <TextField
-          placeholder="Search batches..."
-          value={searchInput}
-          onChange={handleSearchChange}
-          onKeyPress={handleKeyPress}
-          size="small"
-          fullWidth
-          InputProps={{
-            startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
-            endAdornment: searchInput && (
-              <IconButton size="small" onClick={handleSearchClear}>
-                <ClearIcon />
-              </IconButton>
-            ),
-          }}
-        />
+        {/* Search Field */}
+        <Box sx={{ flex: 1 }}>
+          <TextField
+            placeholder="Search batches..."
+            value={searchInput}
+            onChange={handleSearchChange}
+            onKeyPress={handleKeyPress}
+            size="small"
+            fullWidth
+            InputProps={{
+              startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
+              endAdornment: searchInput && (
+                <IconButton size="small" onClick={handleSearchClear}>
+                  <ClearIcon />
+                </IconButton>
+              ),
+            }}
+          />
+        </Box>
+
+        {/* Filter Toggle Button */}
+        <Tooltip title={filtersExpanded ? "Hide filters" : "Show filters"}>
+          <IconButton 
+            onClick={toggleFilters}
+            sx={{
+              transform: filtersExpanded ? 'rotate(180deg)' : 'none',
+              transition: theme.transitions.create('transform')
+            }}
+          >
+            <ExpandMoreIcon />
+          </IconButton>
+        </Tooltip>
       </Box>
 
-      {/* Status Filter */}
-      <FormControl sx={{ minWidth: 200 }} size="small">
-        <InputLabel id="status-filter-label">Status</InputLabel>
-        <Select
-          labelId="status-filter-label"
-          multiple
-          value={filter.status || []}
-          onChange={handleStatusChange}
-          input={<OutlinedInput label="Status" />}
-          renderValue={(selected) => (
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-              {selected.map((status) => (
-                <BatchStatusChip key={status} status={status} />
+      {/* Filters Section */}
+      <Collapse in={filtersExpanded || !isMobile}>
+        <Box sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: 2,
+          pt: { xs: 1, sm: 0 }
+        }}>
+          {/* Status Filter */}
+          <FormControl 
+            sx={{ 
+              minWidth: { xs: '100%', sm: 200 }
+            }} 
+            size="small"
+          >
+            <InputLabel id="status-filter-label">Status</InputLabel>
+            <Select
+              labelId="status-filter-label"
+              multiple
+              value={filter.status || []}
+              onChange={handleStatusChange}
+              input={<OutlinedInput label="Status" />}
+              renderValue={(selected) => (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                  {selected.map((status) => (
+                    <BatchStatusChip key={status} status={status} />
+                  ))}
+                </Box>
+              )}
+            >
+              {Object.entries(BATCH_STATUS_LABELS).map(([value, label]) => (
+                <MenuItem key={value} value={value}>
+                  <BatchStatusChip status={value as BatchStatus} />
+                </MenuItem>
               ))}
-            </Box>
-          )}
-        >
-          {Object.entries(BATCH_STATUS_LABELS).map(([value, label]) => (
-            <MenuItem key={value} value={value}>
-              <BatchStatusChip status={value as BatchStatus} />
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
+            </Select>
+          </FormControl>
 
-      {/* Additional Filters Button */}
-      <Tooltip title="More filters">
-        <IconButton>
-          <FilterListIcon />
-        </IconButton>
-      </Tooltip>
+          {/* Additional Filters Button */}
+          <Tooltip title="More filters">
+            <IconButton sx={{ alignSelf: { xs: 'flex-start', sm: 'center' } }}>
+              <FilterListIcon />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </Collapse>
     </Box>
   );
 };

@@ -11,7 +11,6 @@
     "dev:css": "tailwindcss -i ./src/public/styles.css -o ./src/public/output.css --watch",
     "build": "npm install && npm run build:css",
     "build:css": "tailwindcss -i ./src/public/styles.css -o ./src/public/output.css",
-    "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "eslint .",
     "deploy": "az webapp deployment source config-zip --resource-group bradoriaapi2025group --name heymarket-api --src deploy.zip && zip -r deploy.zip . -x \"node_modules/*\" \".*\""
   },
