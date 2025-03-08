@@ -78,7 +78,7 @@ app.use(requestLogger);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(apiSpec));
 
 // Root route - no auth required
-app.get('/', (req, res) => {
+app.get('/api', (req, res) => {
   res.json({ 
     status: 'ok', 
     message: 'API is running',
@@ -99,6 +99,17 @@ app.use('/api/messages', authenticate, messagesRouter);
 app.use('/api/batch', authenticate, batchRouter);
 app.use('/api/v2/batch', authenticate, batchV2Router); // Mount v2 batch router
 app.use('/api/v2/notifications', authenticate, notificationsRouter);
+
+// Catch-all route for SPA - must be AFTER API routes but BEFORE error handlers
+app.get('*', (req, res, next) => {
+  // Exclude API routes and static file requests
+  if (!req.path.startsWith('/api') && !req.path.includes('.')) {
+    res.sendFile(join(__dirname, 'public', 'index.html'));
+  } else {
+    // Let the next middleware handle it (will eventually hit notFound)
+    next();
+  }
+});
 
 // Error handling
 app.use(notFound);
