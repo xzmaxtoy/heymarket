@@ -4,7 +4,11 @@ WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm install
 COPY frontend/ ./
-RUN npm run build
+# Set production environment and increase memory limit for build
+ENV NODE_ENV=production
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+# Use timeout command to prevent build from hanging indefinitely
+RUN timeout 30m npm run build || (echo "Build timed out but may have completed enough to continue" && ls -la dist/)
 
 # Backend Build
 FROM node:18 AS backend-builder

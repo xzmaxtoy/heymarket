@@ -6,6 +6,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 120  # Set a 2-hour timeout for the entire job
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
