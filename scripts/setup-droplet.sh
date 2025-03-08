@@ -29,17 +29,24 @@ cd /root
 git clone https://github.com/xzmaxtoy/heymarket.git
 cd heymarket
 
+# Get public IP address
+PUBLIC_IP=$(curl -s http://checkip.amazonaws.com)
+echo "Public IP: $PUBLIC_IP"
+
 # Create production env file
 cat > .env << EOL
 PORT=3000
 NODE_ENV=production
-CORS_ORIGIN=http://159.223.135.110
+CORS_ORIGIN=http://$PUBLIC_IP
 
-# Add your production environment variables here
-HEYMARKET_API_KEY=your_heymarket_api_key_here
-SUPABASE_URL=your_supabase_project_url
-SUPABASE_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_KEY=your_supabase_service_key
+# API Keys
+HEYMARKET_API_KEY=sk_uPCtZENJgx
+EMPLOYEE_LIST_URL=https://docs.google.com/spreadsheets/d/e/2PACX-1vTg1J0pU183WUQ1vhF1LvUytmOQj9pW3Ug-lzZGdcQYcZcGI7OzALWHfPpat5r7JsCPypR10Lj3sSfR/pub?gid=1976861448&single=true&output=csv
+
+# Supabase Configuration
+SUPABASE_URL=https://zpwwsiljoyrfibillxzd.supabase.co
+SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpwd3dzaWxqb3lyZmliaWxseHpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzM0NDY4NzQsImV4cCI6MjA0OTAyMjg3NH0.-O2sEPO6IlcPyWLElR6apE7G4gPHgg8S0SFdaalp388
+SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpwd3dzaWxqb3lyZmliaWxseHpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzM0NDY4NzQsImV4cCI6MjA0OTAyMjg3NH0.-O2sEPO6IlcPyWLElR6apE7G4gPHgg8S0SFdaalp388
 
 # Batch Processing Configuration
 BATCH_PROCESSING_RATE=5
