@@ -9,8 +9,8 @@ apt-get install -y curl git
 
 # Clone repository
 cd /root
-git clone https://github.com/xzmaxtoy/sms-batch-send.git
-cd sms-batch-send
+git clone https://github.com/xzmaxtoy/heymarket.git
+cd heymarket
 
 # Create production env file
 cat > .env << EOL

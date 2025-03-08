@@ -18,7 +18,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             # Update repository
-            cd /root/sms-batch-send
+            cd /root/heymarket
             git pull origin main
             
             # Build and deploy with Docker
