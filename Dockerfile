@@ -1,21 +1,35 @@
-# Frontend Build
-FROM node:18 AS frontend-builder
+# Frontend Dependencies
+FROM node:18-alpine AS frontend-deps
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm install
-COPY frontend/ ./
+RUN npm ci --only=production
+
+# Backend Dependencies
+FROM node:18-alpine AS backend-deps
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+
+# Frontend Build
+FROM frontend-deps AS frontend-builder
 # Set production environment and increase memory limit for build
 ENV NODE_ENV=production
 ENV NODE_OPTIONS="--max-old-space-size=4096"
+# Copy only the necessary files for the build
+COPY frontend/public ./public
+COPY frontend/src ./src
+COPY frontend/*.json ./
+COPY frontend/*.ts ./
 # Use timeout command to prevent build from hanging indefinitely
 RUN timeout 30m npm run build || (echo "Build timed out but may have completed enough to continue" && ls -la dist/)
 
 # Backend Build
-FROM node:18 AS backend-builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
+FROM backend-deps AS backend-builder
+# Copy only the necessary files for the build
+COPY src ./src
+COPY *.json ./
+COPY *.yaml ./
+COPY postcss.config.js ./
 RUN npm run build:css
 
 # Final Stage

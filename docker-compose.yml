@@ -1,3 +1,4 @@
+# Enable BuildKit for faster builds
 services:
   app:
     build: .

@@ -6,18 +6,19 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 120  # Set a 2-hour timeout for the entire job
+    timeout-minutes: 60  # Reduced timeout to 1 hour
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Update repository on DigitalOcean
+      # Combined deployment steps to reduce SSH connection overhead
+      - name: Deploy to DigitalOcean
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.DROPLET_IP }}
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          timeout: 60m  # Increase timeout to 60 minutes
+          timeout: 45m  # Reduced timeout
           script: |
             echo "=== STEP 1: Updating repository ==="
             # Check if directory exists, if not create it
@@ -25,7 +26,7 @@ jobs:
               echo "Directory not found, creating..."
               mkdir -p /root/heymarket
               cd /root/heymarket
-              git clone https://github.com/xzmaxtoy/heymarket.git .
+              git clone --depth=1 https://github.com/xzmaxtoy/heymarket.git .
             else
               cd /root/heymarket
               # Try to pull with retries
@@ -44,7 +45,7 @@ jobs:
                   echo "All pull attempts failed. Trying to clone fresh..."
                   cd /root
                   rm -rf heymarket
-                  git clone https://github.com/xzmaxtoy/heymarket.git
+                  git clone --depth=1 https://github.com/xzmaxtoy/heymarket.git
                   cd heymarket
                 fi
               done
@@ -95,79 +96,47 @@ jobs:
             EOL
             echo "Environment variables updated successfully."
 
-      - name: Stop running containers
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.DROPLET_IP }}
-          username: root
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          timeout: 10m
-          script: |
             echo "=== STEP 3: Stopping running containers ==="
             cd /root/heymarket
             docker-compose down || echo "No containers to stop"
             echo "Containers stopped successfully."
 
-      - name: Clean up Docker system
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.DROPLET_IP }}
-          username: root
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          timeout: 10m
-          script: |
             echo "=== STEP 4: Cleaning up Docker system ==="
-            # More selective cleanup with timeouts
-            echo "Removing dangling images..."
-            timeout 2m docker image prune -f || echo "Image prune timed out, continuing anyway"
-            
-            echo "Removing stopped containers..."
-            timeout 2m docker container prune -f || echo "Container prune timed out, continuing anyway"
-            
-            echo "Removing unused networks..."
-            timeout 1m docker network prune -f || echo "Network prune timed out, continuing anyway"
-            
-            echo "Proceeding with deployment regardless of cleanup result."
+            # Faster selective cleanup
+            docker image prune -f --filter "until=24h" &
+            docker container prune -f &
+            docker network prune -f &
+            wait
+            echo "Docker system cleaned up."
 
-      - name: Build Docker images
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.DROPLET_IP }}
-          username: root
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          timeout: 60m  # Long timeout for build
-          script: |
             echo "=== STEP 5: Building Docker images ==="
             cd /root/heymarket
+            # Enable BuildKit for faster builds
+            export DOCKER_BUILDKIT=1
+            export COMPOSE_DOCKER_CLI_BUILD=1
             # Use build cache for efficiency
-            docker-compose build
+            docker-compose build --parallel
             echo "Docker images built successfully."
 
-      - name: Start containers
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.DROPLET_IP }}
-          username: root
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          timeout: 10m
-          script: |
             echo "=== STEP 6: Starting containers ==="
             cd /root/heymarket
             docker-compose up -d
             echo "Containers started successfully."
 
-      - name: Verify deployment
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.DROPLET_IP }}
-          username: root
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          timeout: 10m
-          script: |
             echo "=== STEP 7: Verifying deployment ==="
-            cd /root/heymarket
+            # Wait for container to be healthy
+            echo "Waiting for container to be ready..."
+            for i in {1..30}; do
+              if curl -s http://localhost/health > /dev/null; then
+                echo "Application is healthy!"
+                break
+              fi
+              echo "Waiting for application to start... ($i/30)"
+              sleep 2
+            done
+            
             docker-compose ps
-            docker-compose logs --tail=20
+            docker-compose logs --tail=10
             
             # Check if the application is responding
             echo "Checking application health..."
