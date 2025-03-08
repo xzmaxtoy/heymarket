@@ -18,8 +18,28 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             # Update repository
-            cd /root/heymarket
-            git pull origin main
+            cd /root/heymarket || { echo "Directory not found, creating..."; mkdir -p /root/heymarket; cd /root/heymarket; git clone https://github.com/xzmaxtoy/heymarket.git .; }
+            
+            # Try to pull with retries
+            for i in {1..3}; do
+              echo "Attempt $i: Pulling latest code..."
+              git config --global http.sslVerify false
+              if git pull origin main; then
+                echo "Pull successful!"
+                break
+              else
+                echo "Pull failed, retrying in 5 seconds..."
+                sleep 5
+              fi
+              
+              if [ $i -eq 3 ]; then
+                echo "All pull attempts failed. Trying to clone fresh..."
+                cd /root
+                rm -rf heymarket
+                git clone https://github.com/xzmaxtoy/heymarket.git
+                cd heymarket
+              fi
+            done
             
             # Update environment variables
             cat > .env << EOL
