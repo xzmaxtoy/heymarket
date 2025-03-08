@@ -10,37 +10,46 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Deploy to Digital Ocean droplet via SSH
+      - name: Update repository on DigitalOcean
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.DROPLET_IP }}
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          timeout: 60m  # Increase timeout to 60 minutes
           script: |
-            # Update repository
-            cd /root/heymarket || { echo "Directory not found, creating..."; mkdir -p /root/heymarket; cd /root/heymarket; git clone https://github.com/xzmaxtoy/heymarket.git .; }
+            echo "=== STEP 1: Updating repository ==="
+            # Check if directory exists, if not create it
+            if [ ! -d "/root/heymarket" ]; then
+              echo "Directory not found, creating..."
+              mkdir -p /root/heymarket
+              cd /root/heymarket
+              git clone https://github.com/xzmaxtoy/heymarket.git .
+            else
+              cd /root/heymarket
+              # Try to pull with retries
+              for i in {1..3}; do
+                echo "Attempt $i: Pulling latest code..."
+                git config --global http.sslVerify false
+                if git pull origin main; then
+                  echo "Pull successful!"
+                  break
+                else
+                  echo "Pull failed, retrying in 5 seconds..."
+                  sleep 5
+                fi
+                
+                if [ $i -eq 3 ]; then
+                  echo "All pull attempts failed. Trying to clone fresh..."
+                  cd /root
+                  rm -rf heymarket
+                  git clone https://github.com/xzmaxtoy/heymarket.git
+                  cd heymarket
+                fi
+              done
+            fi
             
-            # Try to pull with retries
-            for i in {1..3}; do
-              echo "Attempt $i: Pulling latest code..."
-              git config --global http.sslVerify false
-              if git pull origin main; then
-                echo "Pull successful!"
-                break
-              else
-                echo "Pull failed, retrying in 5 seconds..."
-                sleep 5
-              fi
-              
-              if [ $i -eq 3 ]; then
-                echo "All pull attempts failed. Trying to clone fresh..."
-                cd /root
-                rm -rf heymarket
-                git clone https://github.com/xzmaxtoy/heymarket.git
-                cd heymarket
-              fi
-            done
-            
+            echo "=== STEP 2: Updating environment variables ==="
             # Update environment variables
             cat > .env << EOL
             PORT=3000
@@ -83,13 +92,74 @@ jobs:
             PREVIEW_CACHE_SIZE=1000
             PREVIEW_CACHE_TTL=3600
             EOL
-            
-            # Build and deploy with Docker
-            docker-compose down
+            echo "Environment variables updated successfully."
+
+      - name: Stop running containers
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          timeout: 10m
+          script: |
+            echo "=== STEP 3: Stopping running containers ==="
+            cd /root/heymarket
+            docker-compose down || echo "No containers to stop"
+            echo "Containers stopped successfully."
+
+      - name: Clean up Docker system
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          timeout: 10m
+          script: |
+            echo "=== STEP 4: Cleaning up Docker system ==="
             docker system prune -f
-            docker-compose build --no-cache
+            echo "Docker system cleaned up successfully."
+
+      - name: Build Docker images
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          timeout: 60m  # Long timeout for build
+          script: |
+            echo "=== STEP 5: Building Docker images ==="
+            cd /root/heymarket
+            # Use build cache for efficiency
+            docker-compose build
+            echo "Docker images built successfully."
+
+      - name: Start containers
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          timeout: 10m
+          script: |
+            echo "=== STEP 6: Starting containers ==="
+            cd /root/heymarket
             docker-compose up -d
-            
-            # Verify deployment
+            echo "Containers started successfully."
+
+      - name: Verify deployment
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          timeout: 10m
+          script: |
+            echo "=== STEP 7: Verifying deployment ==="
+            cd /root/heymarket
             docker-compose ps
-            docker-compose logs --tail=50
+            docker-compose logs --tail=20
+            
+            # Check if the application is responding
+            echo "Checking application health..."
+            curl -s http://localhost/health || echo "Health check failed"
+            echo "Deployment verification complete."
