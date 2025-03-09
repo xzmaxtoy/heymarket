@@ -1,14 +1,16 @@
 # Frontend Dependencies
 FROM node:18-alpine AS frontend-deps
 WORKDIR /app/frontend
-COPY frontend/package*.json ./
-RUN npm ci --omit=dev
+COPY frontend/package*.json frontend/package-lock.json ./
+# Use regular npm install instead of npm ci since package-lock.json might not exist
+RUN npm install --production
 
 # Backend Dependencies
 FROM node:18-alpine AS backend-deps
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci --omit=dev
+COPY package*.json package-lock.json ./
+# Use regular npm install instead of npm ci since package-lock.json might not exist
+RUN npm install --production
 
 # Frontend Build
 FROM frontend-deps AS frontend-builder
