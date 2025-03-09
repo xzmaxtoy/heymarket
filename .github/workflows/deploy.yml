@@ -96,9 +96,21 @@ jobs:
             EOL
             echo "Environment variables updated successfully."
 
+            echo "=== STEP 3: Verifying repository contents ==="
+            cd /root/heymarket
+            ls -la
+            if [ ! -f "docker-compose.yml" ]; then
+              echo "ERROR: docker-compose.yml not found!"
+              exit 1
+            fi
+            echo "docker-compose.yml found, proceeding with deployment."
+            
+            # Check Docker Compose version
+            docker-compose --version
+            
             echo "=== STEP 3: Stopping running containers ==="
             cd /root/heymarket
-            docker-compose down || echo "No containers to stop"
+            docker-compose -f docker-compose.yml down || echo "No containers to stop"
             echo "Containers stopped successfully."
 
             echo "=== STEP 4: Cleaning up Docker system ==="
@@ -115,12 +127,12 @@ jobs:
             export DOCKER_BUILDKIT=1
             export COMPOSE_DOCKER_CLI_BUILD=1
             # Use build cache for efficiency
-            docker-compose build --parallel
+            docker-compose -f docker-compose.yml build
             echo "Docker images built successfully."
 
             echo "=== STEP 6: Starting containers ==="
             cd /root/heymarket
-            docker-compose up -d
+            docker-compose -f docker-compose.yml up -d
             echo "Containers started successfully."
 
             echo "=== STEP 7: Verifying deployment ==="
@@ -135,8 +147,8 @@ jobs:
               sleep 2
             done
             
-            docker-compose ps
-            docker-compose logs --tail=10
+            docker-compose -f docker-compose.yml ps
+            docker-compose -f docker-compose.yml logs --tail=10
             
             # Check if the application is responding
             echo "Checking application health..."
