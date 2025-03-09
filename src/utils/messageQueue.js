@@ -15,6 +15,7 @@ class MessageQueue {
     this.concurrency = 5; // Process 5 messages at a time
     this.completionDelay = 30000; // Wait 30 seconds before checking completion
     this.completionChecks = new Map(); // batchId -> timeout
+    this.pausedBatches = new Set(); // Set of paused batch IDs
   }
 
   /**
@@ -65,9 +66,14 @@ class MessageQueue {
       return;
     }
 
-    // Check if already processing
+    // Check if already processing or paused
     if (this.processing.get(batchId)) {
       console.log(`Batch ${batchId} is already being processed`);
+      return;
+    }
+
+    if (this.pausedBatches.has(batchId)) {
+      console.log(`Batch ${batchId} is paused`);
       return;
     }
 
@@ -76,6 +82,20 @@ class MessageQueue {
 
     this.processing.set(batchId, true);
     const queue = this.queues.get(batchId);
+
+    // Get batch status from Supabase
+    const { data: batch } = await supabase
+      .from('sms_batches')
+      .select('status')
+      .eq('id', batchId)
+      .single();
+
+    // Don't process if batch is paused
+    if (batch?.status === 'paused') {
+      this.pausedBatches.add(batchId);
+      this.processing.set(batchId, false);
+      return;
+    }
 
     try {
       // Get batch from old system
@@ -155,37 +175,30 @@ class MessageQueue {
     try {
       console.log(`Checking completion status for batch ${batchId}`);
 
-      // Initialize for pagination
-      let allLogs = [];
-      let page = 0;
-      const pageSize = 1000;
+      // Get batch status first
+      const { data: batch } = await supabase
+        .from('sms_batches')
+        .select('status')
+        .eq('id', batchId)
+        .single();
 
-      // Fetch all logs with pagination
-      while (true) {
-        console.log(`Fetching page ${page} for batch ${batchId}`);
-        const { data, error } = await supabase
-          .from('sms_batch_log')
-          .select('status')
-          .eq('batch_id', batchId)
-          .range(page * pageSize, (page + 1) * pageSize - 1);
-        
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        
-        allLogs = allLogs.concat(data);
-        console.log(`Retrieved ${data.length} records, total so far: ${allLogs.length}`);
-        
-        if (data.length < pageSize) break;
-        page++;
+      // Don't check completion for paused batches
+      if (batch?.status === 'paused') {
+        console.log(`Batch ${batchId} is paused, skipping completion check`);
+        return;
       }
 
-      // Count statuses
-      const counts = allLogs.reduce((acc, log) => {
+      // Get batch data with silent logging
+      const batchData = await batchManager.getBatch(batchId, { silent: true });
+      if (!batchData) throw new Error('Batch not found');
+
+      // Count statuses from batch data
+      const counts = batchData.results.reduce((acc, log) => {
         acc[log.status] = (acc[log.status] || 0) + 1;
         return acc;
       }, {});
 
-      const total = allLogs.length;
+      const total = batchData.results.length;
       const completed = counts.completed || 0;
       const failed = counts.failed || 0;
       const pending = counts.pending || 0;
@@ -381,6 +394,105 @@ class MessageQueue {
           await this.processBatch(batchId, auth);
         }
       }
+    }
+  }
+
+  /**
+   * Pause batch processing
+   */
+  async pauseBatch(batchId) {
+    // Add to paused set
+    this.pausedBatches.add(batchId);
+    
+    // Stop processing
+    this.processing.set(batchId, false);
+
+    // Clear any pending retries
+    const batch = await batchManager.getBatch(batchId);
+    batch.results.forEach(result => {
+      const timeout = this.retryTimeouts.get(result.messageId);
+      if (timeout) {
+        clearTimeout(timeout);
+        this.retryTimeouts.delete(result.messageId);
+      }
+    });
+
+    // Clear completion check
+    const completionCheck = this.completionChecks.get(batchId);
+    if (completionCheck) {
+      clearTimeout(completionCheck);
+      this.completionChecks.delete(batchId);
+    }
+
+    // Update batch status in database
+    await batchManager.pauseBatch(batchId);
+  }
+
+  /**
+   * Resume batch processing
+   */
+  async resumeBatch(batchId, auth) {
+    try {
+      console.log(`Resuming batch ${batchId}`);
+
+      // Remove from paused set
+      this.pausedBatches.delete(batchId);
+
+      // Get all pending messages
+      const { data: pendingLogs, error: logsError } = await supabase
+        .from('sms_batch_log')
+        .select('*')
+        .eq('batch_id', batchId)
+        .eq('status', 'pending');
+
+      if (logsError) throw logsError;
+      
+      console.log(`Found ${pendingLogs.length} pending messages to resume`);
+
+      if (pendingLogs.length === 0) {
+        console.log('No pending messages found, checking batch completion');
+        await this.checkBatchCompletion(batchId);
+        return;
+      }
+
+      // Create messages from logs
+      const messages = pendingLogs.map(log => ({
+        batchId,
+        messageId: log.id,
+        phoneNumber: log.targets,
+        variables: log.variables,
+        retryStrategy: log.metadata?.retryStrategy || {
+          maxAttempts: 3,
+          backoffMinutes: 5
+        }
+      }));
+
+      // Initialize queue if not exists
+      if (!this.queues.has(batchId)) {
+        this.queues.set(batchId, new Map());
+        this.processing.set(batchId, false);
+      }
+
+      // Add messages to queue
+      const queue = this.queues.get(batchId);
+      messages.forEach(msg => {
+        if (!queue.has(msg.messageId)) {
+          queue.set(msg.messageId, msg);
+        }
+      });
+
+      console.log(`Re-initialized queue with ${queue.size} messages`);
+
+      // Update batch status to processing
+      await batchManager.updateStatus(batchId, 'processing', {
+        resume_time: new Date().toISOString()
+      });
+
+      // Start processing
+      await this.processBatch(batchId, auth);
+    } catch (error) {
+      console.error('Error resuming batch:', error);
+      throw new Error(`Failed to resume batch: ${error.message}`);
     }
   }
 

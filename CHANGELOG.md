@@ -2,20 +2,6 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2.2.3] - 2025-02-16
-
-### Changed
-- Consolidated all feature branches into master
-- Updated branch management documentation
-- Enhanced version control documentation
-- Improved repository structure
-
-### Technical Details
-- Updated branch management strategy in docs/VERSIONING.md
-- Cleaned up and organized branch structure
-- Preserved historical branches for reference
-- Maintained master as primary branch
-
 ## [2.2.2] - 2025-02-02
 
 ### Fixed

@@ -77,19 +77,23 @@ src/
 ### In Progress 🚧
 
 1. Template Management
-   - [ ] Template list view
-   - [ ] Template creation/editing
-   - [ ] Variable mapping
-   - [ ] Template preview
-   - [ ] Template categories
+   - [x] Template list view with grid/table modes
+   - [x] Mobile-first card view
+   - [x] Template creation/editing
+   - [x] Variable mapping and preview
+   - [x] Content-focused display
+   - [x] Touch-friendly actions
 
 2. Batch Operations
-   - [ ] Batch creation flow
-   - [ ] Schedule management
-   - [ ] Batch monitoring
-   - [ ] Progress tracking
-   - [ ] Error handling
-   - [ ] Retry mechanisms
+   - [x] Batch creation flow
+   - [x] Schedule management
+   - [x] Batch monitoring with real-time updates
+   - [x] Complete progress tracking (all messages)
+   - [x] Concurrent processing (5 at a time)
+   - [x] Paginated message handling (1000 per page)
+   - [x] Pause/Resume functionality
+   - [x] Error handling with retries
+   - [x] In-flight message completion
 
 3. Analytics
    - [ ] Batch statistics
@@ -107,11 +111,13 @@ src/
    - [ ] Rate limiting controls
 
 2. UI Enhancements
+   - [x] Mobile responsiveness
+   - [x] Grid/Table view toggle
+   - [x] Card-based layouts
    - [ ] Dark mode support
    - [ ] Custom theme configuration
    - [ ] Keyboard shortcuts
    - [ ] Accessibility improvements
-   - [ ] Mobile responsiveness
 
 3. Performance Optimizations
    - [ ] Virtual scrolling for large datasets

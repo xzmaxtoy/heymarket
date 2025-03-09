@@ -3,6 +3,8 @@ import {
   Box,
   IconButton,
   Tooltip,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import {
   Cancel as CancelIcon,
@@ -11,7 +13,7 @@ import {
   PlayArrow as PlayArrowIcon,
 } from '@mui/icons-material';
 import { useAppDispatch } from '@/store';
-import { startBatch, cancelBatch } from '@/store/thunks/batchThunks';
+import { startBatch, cancelBatch, pauseBatch } from '@/store/thunks/batchThunks';
 import { Batch } from '../types';
 
 interface BatchActionsProps {
@@ -28,6 +30,7 @@ export const BatchActions: React.FC<BatchActionsProps> = ({
 
   const isPending = batch.status === 'pending';
   const isProcessing = batch.status === 'processing';
+  const isPaused = batch.status === 'paused';
 
   const handleStart = async () => {
     try {
@@ -38,6 +41,20 @@ export const BatchActions: React.FC<BatchActionsProps> = ({
       }
     } catch (error) {
       console.error('Failed to start batch:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePause = async () => {
+    try {
+      setIsLoading(true);
+      await dispatch(pauseBatch(batch.id)).unwrap();
+      if (onRefresh) {
+        onRefresh(batch.id);
+      }
+    } catch (error) {
+      console.error('Failed to pause batch:', error);
     } finally {
       setIsLoading(false);
     }
@@ -57,13 +74,30 @@ export const BatchActions: React.FC<BatchActionsProps> = ({
     }
   };
 
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+  const buttonSize = isMobile ? 'medium' : 'small';
+  const iconSize = isMobile ? 24 : 20;
+
   return (
-    <Box sx={{ display: 'flex', gap: 0.5 }}>
+    <Box sx={{ 
+      display: 'flex', 
+      gap: { xs: 1, sm: 0.5 },
+      '& .MuiIconButton-root': {
+        p: { xs: 1.5, sm: 1 }
+      }
+    }}>
       {/* Cancel Action */}
       {(isPending || isProcessing) && (
         <Tooltip title="Cancel Batch">
           <IconButton
-            size="small"
+            size={buttonSize}
+            sx={{
+              '& .MuiSvgIcon-root': {
+                fontSize: iconSize
+              }
+            }}
             onClick={handleCancel}
             color="error"
             disabled={isLoading}
@@ -73,25 +107,35 @@ export const BatchActions: React.FC<BatchActionsProps> = ({
         </Tooltip>
       )}
 
-      {/* Pause Action - To be implemented */}
+      {/* Pause Action */}
       {isProcessing && (
-        <Tooltip title="Pause Batch (Coming Soon)">
-          <span>
-            <IconButton
-              size="small"
-              disabled={true}
-            >
-              <PauseIcon />
-            </IconButton>
-          </span>
+        <Tooltip title="Pause Batch">
+          <IconButton
+            size={buttonSize}
+            sx={{
+              '& .MuiSvgIcon-root': {
+                fontSize: iconSize
+              }
+            }}
+            onClick={handlePause}
+            color="warning"
+            disabled={isLoading}
+          >
+            <PauseIcon />
+          </IconButton>
         </Tooltip>
       )}
 
-      {/* Start Action */}
-      {isPending && (
-        <Tooltip title="Start Now">
+      {/* Start/Resume Action */}
+      {(isPending || isPaused) && (
+        <Tooltip title={isPaused ? "Resume Batch" : "Start Now"}>
           <IconButton
-            size="small"
+            size={buttonSize}
+            sx={{
+              '& .MuiSvgIcon-root': {
+                fontSize: iconSize
+              }
+            }}
             onClick={handleStart}
             color="primary"
             disabled={isLoading}
@@ -105,7 +149,12 @@ export const BatchActions: React.FC<BatchActionsProps> = ({
       {onRefresh && (
         <Tooltip title="Refresh">
           <IconButton
-            size="small"
+            size={buttonSize}
+            sx={{
+              '& .MuiSvgIcon-root': {
+                fontSize: iconSize
+              }
+            }}
             onClick={() => onRefresh(batch.id)}
             disabled={isLoading}
           >

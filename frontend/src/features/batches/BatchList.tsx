@@ -1,5 +1,5 @@
-import React from 'react';
-import { Box, Paper, Button } from '@mui/material';
+import React, { useState } from 'react';
+import { Box, Paper, Button, useTheme, useMediaQuery } from '@mui/material';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/store';
@@ -17,10 +17,15 @@ import BatchListToolbar from './components/BatchListToolbar';
 import BatchStatusChip from './components/BatchStatusChip';
 import BatchProgress from './components/BatchProgress';
 import BatchActions from './components/BatchActions';
+import BatchCardGrid from './components/BatchCardGrid';
+import ViewToggle from './components/ViewToggle';
 import { subscribeToBatch, unsubscribeFromBatch } from '@/services/websocket';
 import { Add as AddIcon } from '@mui/icons-material';
 
 export const BatchList: React.FC = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>(isMobile ? 'grid' : 'table');
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const batches = useAppSelector(selectBatches);
@@ -126,36 +131,69 @@ export const BatchList: React.FC = () => {
     },
   ];
 
+  // Update view mode when screen size changes
+  React.useEffect(() => {
+    setViewMode(isMobile ? 'grid' : viewMode);
+  }, [isMobile]);
+
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+    <Box sx={{ 
+      height: '100%', 
+      display: 'flex', 
+      flexDirection: 'column',
+      p: { xs: 1, sm: 2 } // Responsive padding
+    }}>
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: { xs: 'column', sm: 'row' },
+        justifyContent: 'space-between', 
+        alignItems: { xs: 'stretch', sm: 'center' },
+        gap: 2,
+        mb: 2 
+      }}>
         <BatchListToolbar />
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<AddIcon />}
-          onClick={handleNewBatch}
-        >
-          New Batch
-        </Button>
+        <Box sx={{ 
+          display: 'flex', 
+          gap: 2,
+          justifyContent: { xs: 'space-between', sm: 'flex-end' },
+          alignItems: 'center'
+        }}>
+          <ViewToggle view={viewMode} onChange={setViewMode} />
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<AddIcon />}
+            onClick={handleNewBatch}
+            fullWidth={isMobile}
+          >
+            New Batch
+          </Button>
+        </Box>
       </Box>
 
-      <Paper sx={{ flex: 1, m: 2 }}>
-        <DataGrid
-          rows={batches}
-          columns={columns}
-          loading={loading}
-          rowCount={total}
-          pageSizeOptions={[10, 25, 50]}
-          paginationMode="server"
-          paginationModel={{ page: currentPage, pageSize }}
-          onPaginationModelChange={(model) => 
-            handlePaginationChange(model.page, model.pageSize)
-          }
-          disableRowSelectionOnClick
-          getRowId={(row: Batch) => row.id}
+      {viewMode === 'grid' ? (
+        <BatchCardGrid
+          batches={batches}
+          onRefresh={handleRefreshBatch}
         />
-      </Paper>
+      ) : (
+        <Paper sx={{ flex: 1 }}>
+          <DataGrid
+            rows={batches}
+            columns={columns}
+            loading={loading}
+            rowCount={total}
+            pageSizeOptions={[10, 25, 50]}
+            paginationMode="server"
+            paginationModel={{ page: currentPage, pageSize }}
+            onPaginationModelChange={(model) => 
+              handlePaginationChange(model.page, model.pageSize)
+            }
+            disableRowSelectionOnClick
+            getRowId={(row: Batch) => row.id}
+          />
+        </Paper>
+      )}
     </Box>
   );
 };

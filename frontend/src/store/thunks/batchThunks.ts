@@ -242,6 +242,42 @@ export const createBatch = createAsyncThunk(
   }
 );
 
+// Pause batch
+export const pauseBatch = createAsyncThunk(
+  'batches/pauseBatch',
+  async (batchId: string) => {
+    try {
+      console.log('Pausing batch:', batchId);
+
+      // Call backend pause endpoint
+      try {
+        await api.post(`/api/v2/batch/${batchId}/pause`, {});
+        console.log('Backend batch paused');
+      } catch (error) {
+        console.error('Error pausing batch in backend:', error);
+        throw error;
+      }
+
+      // Update Supabase status
+      const { data: updatedBatch, error: updateError } = await supabase
+        .from('sms_batches')
+        .update({ status: 'paused' })
+        .eq('id', batchId)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+      if (!updatedBatch) throw new Error('Failed to update batch status');
+
+      console.log('Batch paused:', updatedBatch);
+      return updatedBatch as Batch;
+    } catch (error) {
+      console.error('Error pausing batch:', error);
+      throw new Error(handleError(error));
+    }
+  }
+);
+
 // Start batch
 export const startBatch = createAsyncThunk(
   'batches/startBatch',
@@ -249,10 +285,21 @@ export const startBatch = createAsyncThunk(
     try {
       console.log('Starting batch:', batchId);
 
-      // Call backend resume endpoint
+      // Call backend resume endpoint with auth
       try {
-        await api.post(`/api/v2/batch/${batchId}/resume`, {});
-        console.log('Backend batch started');
+        const auth = {
+          apiKey: import.meta.env.VITE_API_KEY,
+          headers: {
+            'x-inbox-id': import.meta.env.VITE_INBOX_ID,
+            'x-creator-id': import.meta.env.VITE_CREATOR_ID
+          }
+        };
+        
+        await api.post(`/api/v2/batch/${batchId}/resume`, { auth });
+        console.log('Backend batch started with auth:', {
+          ...auth,
+          apiKey: '[REDACTED]'
+        });
       } catch (error) {
         console.error('Error starting batch in backend:', error);
         throw error; // Throw error since this is critical

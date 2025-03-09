@@ -56,6 +56,14 @@ export const useTemplateList = () => {
     dispatch(setSelectedTemplate(template));
   };
 
+  const reloadTemplates = () => {
+    dispatch(fetchTemplates({
+      page: currentPage + 1,
+      pageSize,
+      filter,
+    }));
+  };
+
   return {
     // State
     templates,
@@ -71,6 +79,7 @@ export const useTemplateList = () => {
     onPageChange: handlePageChange,
     onPageSizeChange: handlePageSizeChange,
     onTemplateSelect: handleTemplateSelect,
+    reloadTemplates,
   };
 };
 

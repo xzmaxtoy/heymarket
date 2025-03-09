@@ -2,6 +2,11 @@ import { supabase } from '../../services/supabase.js';
 import { emitBatchUpdate, emitBatchError, emitBatchComplete } from '../../websocket/server.js';
 
 class BatchManager {
+  constructor() {
+    // Cache for batch data
+    this.batchCache = new Map();
+  }
+
   /**
    * Create a new batch
    */
@@ -142,7 +147,18 @@ class BatchManager {
   /**
    * Get batch by ID with related data
    */
-  async getBatch(batchId) {
+  async getBatch(batchId, options = {}) {
+    const {
+      useCache = false,
+      silent = false,
+      forceRefresh = false
+    } = options;
+
+    // Check cache first
+    if (useCache && !forceRefresh && this.batchCache.has(batchId)) {
+      return this.batchCache.get(batchId);
+    }
+
     try {
       // First get the batch
       const { data: batch, error: batchError } = await supabase
@@ -155,36 +171,43 @@ class BatchManager {
       if (!batch) throw new Error('Batch not found');
 
       // Get logs with pagination
+      const PAGE_SIZE = 1000;
+      let from = 0;
       let allLogs = [];
-      let page = 0;
-      const pageSize = 1000;
-
+      let totalFetched = 0;
+      
+      // Fetch all logs using pagination
       while (true) {
-        console.log(`Fetching batch logs page ${page} for batch ${batchId}`);
-        const { data, error } = await supabase
+        const { data: logs, error: logsError } = await supabase
           .from('sms_batch_log')
           .select('*')
           .eq('batch_id', batchId)
-          .range(page * pageSize, (page + 1) * pageSize - 1);
-        
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        
-        allLogs = allLogs.concat(data);
-        console.log(`Retrieved ${data.length} logs, total so far: ${allLogs.length}`);
-        
-        if (data.length < pageSize) break;
-        page++;
-      }
+          .range(from, from + PAGE_SIZE - 1);
 
-      if (allLogs.length === 0) throw new Error('No messages found for batch');
+        if (logsError) throw logsError;
+        if (!logs || logs.length === 0) break;
+        
+        allLogs = allLogs.concat(logs);
+        totalFetched = allLogs.length;
+        from += PAGE_SIZE;
+        
+        // Only log progress if not in silent mode
+        if (!silent) {
+          // Only log when we get a full page or at the end
+          if (logs.length === PAGE_SIZE) {
+            console.log(`Fetched ${totalFetched} logs for batch ${batchId} (in progress)`);
+          } else {
+            console.log(`Fetched all ${totalFetched} logs for batch ${batchId}`);
+          }
+        }
+      }
 
       // Get first log to get template info
       const templateLog = allLogs[0];
       if (!templateLog) throw new Error('No messages found for batch');
 
-      // Format response to match existing implementation
-      return {
+      // Format response
+      const formattedBatch = {
         id: batch.id,
         status: batch.status,
         progress: batch.progress || {
@@ -224,9 +247,80 @@ class BatchManager {
           variables: log.variables
         }))
       };
+
+      // Update cache
+      this.batchCache.set(batchId, formattedBatch);
+
+      return formattedBatch;
     } catch (error) {
       console.error('Error getting batch:', error);
       throw new Error(`Failed to get batch: ${error.message}`);
+    }
+  }
+
+  /**
+   * Pause a batch
+   */
+  async pauseBatch(batchId) {
+    try {
+      const now = new Date().toISOString();
+      
+      // Get current batch state with caching disabled and silent logging
+      const currentBatch = await this.getBatch(batchId, { silent: true });
+      
+      if (!currentBatch) throw new Error('Batch not found');
+      if (currentBatch.status !== 'processing') {
+        throw new Error('Can only pause processing batches');
+      }
+
+      // Update batch with paused state
+      const { error } = await supabase
+        .from('sms_batches')
+        .update({
+          status: 'paused',
+          updated_at: now,
+          pause_time: now,
+          progress: {
+            ...currentBatch.progress,
+            paused_at: now
+          }
+        })
+        .eq('id', batchId);
+
+      if (error) throw error;
+
+      // Update any processing messages back to pending
+      const { error: logsError } = await supabase
+        .from('sms_batch_log')
+        .update({ 
+          status: 'pending',
+          updated_at: now
+        })
+        .eq('batch_id', batchId)
+        .eq('status', 'processing');
+
+      if (logsError) throw logsError;
+
+      // Update cached batch data
+      const updatedBatch = {
+        ...currentBatch,
+        status: 'paused',
+        updated_at: now,
+        pause_time: now,
+        progress: {
+          ...currentBatch.progress,
+          paused_at: now
+        }
+      };
+
+      // Update cache and emit update
+      this.batchCache.set(batchId, updatedBatch);
+      emitBatchUpdate(batchId, updatedBatch);
+
+      return updatedBatch;
+    } catch (error) {
+      console.error('Error pausing batch:', error);
+      throw new Error(`Failed to pause batch: ${error.message}`);
     }
   }
 
@@ -256,12 +350,25 @@ class BatchManager {
 
       if (error) throw error;
 
+      // Get current batch silently
+      const currentBatch = await this.getBatch(batchId, { silent: true });
+      
+      // Update the batch data
+      const updatedBatch = {
+        ...currentBatch,
+        status,
+        updated_at: now,
+        ...metadata
+      };
+
+      // Update cache
+      this.batchCache.set(batchId, updatedBatch);
+
       // Emit websocket update
-      const batch = await this.getBatch(batchId);
       if (status === 'completed') {
-        emitBatchComplete(batchId, batch);
+        emitBatchComplete(batchId, updatedBatch);
       } else {
-        emitBatchUpdate(batchId, batch);
+        emitBatchUpdate(batchId, updatedBatch);
       }
     } catch (error) {
       console.error('Error updating batch status:', error);
@@ -347,8 +454,8 @@ class BatchManager {
           })
           .eq('id', log.batch_id);
 
-        // Emit batch update
-        const updatedBatch = await this.getBatch(log.batch_id);
+        // Get current batch silently and emit update
+        const updatedBatch = await this.getBatch(log.batch_id, { silent: true });
         if (status === 'failed') {
           emitBatchError(log.batch_id, {
             error: metadata.error,
@@ -369,43 +476,16 @@ class BatchManager {
    */
   async getAnalytics(batchId) {
     try {
-      // Get batch and logs
-      const { data: batch, error: batchError } = await supabase
-        .from('sms_batches')
-        .select('*')
-        .eq('id', batchId)
-        .single();
-
-      if (batchError) throw batchError;
-
-      // Get logs with pagination
-      let allLogs = [];
-      let page = 0;
-      const pageSize = 1000;
-
-      while (true) {
-        console.log(`Fetching analytics logs page ${page} for batch ${batchId}`);
-        const { data, error } = await supabase
-          .from('sms_batch_log')
-          .select('*')
-          .eq('batch_id', batchId)
-          .range(page * pageSize, (page + 1) * pageSize - 1);
-        
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        
-        allLogs = allLogs.concat(data);
-        console.log(`Retrieved ${data.length} logs for analytics, total so far: ${allLogs.length}`);
-        
-        if (data.length < pageSize) break;
-        page++;
-      }
+      // Get batch silently
+      const currentBatch = await this.getBatch(batchId, { silent: true });
+      
+      if (!currentBatch) throw new Error('Batch not found');
 
       const analytics = {
-        total: allLogs.length,
-        completed: allLogs.filter(log => log.status === 'completed').length,
-        failed: allLogs.filter(log => log.status === 'failed').length,
-        pending: allLogs.filter(log => log.status === 'pending').length,
+        total: currentBatch.results.length,
+        completed: currentBatch.results.filter(log => log.status === 'completed').length,
+        failed: currentBatch.results.filter(log => log.status === 'failed').length,
+        pending: currentBatch.results.filter(log => log.status === 'pending').length,
         success_rate: 0,
         error_categories: {}
       };
@@ -416,10 +496,10 @@ class BatchManager {
       }
 
       // Aggregate error categories
-      allLogs
+      currentBatch.results
         .filter(log => log.status === 'failed')
         .forEach(log => {
-          const category = log.error_category || 'unknown';
+          const category = log.errorCategory || 'unknown';
           analytics.error_categories[category] = (analytics.error_categories[category] || 0) + 1;
         });
 

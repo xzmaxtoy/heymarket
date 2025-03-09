@@ -1,0 +1,84 @@
+#!/bin/bash
+
+# Update system
+apt-get update
+apt-get upgrade -y
+
+# Install required packages
+apt-get install -y curl git apt-transport-https ca-certificates gnupg lsb-release
+
+# Install Docker if not already installed
+if ! command -v docker &> /dev/null; then
+    echo "Installing Docker..."
+    curl -fsSL https://get.docker.com -o get-docker.sh
+    sh get-docker.sh
+    systemctl enable docker
+    systemctl start docker
+fi
+
+# Install Docker Compose if not already installed
+if ! command -v docker-compose &> /dev/null; then
+    echo "Installing Docker Compose..."
+    curl -L "https://github.com/docker/compose/releases/download/v2.20.3/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    chmod +x /usr/local/bin/docker-compose
+    ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+fi
+
+# Clone repository
+cd /root
+git clone https://github.com/xzmaxtoy/heymarket.git
+cd heymarket
+
+# Get public IP address
+PUBLIC_IP=$(curl -s http://checkip.amazonaws.com)
+echo "Public IP: $PUBLIC_IP"
+
+# Create production env file
+cat > .env << EOL
+PORT=3000
+NODE_ENV=production
+CORS_ORIGIN=http://$PUBLIC_IP
+
+# API Keys
+HEYMARKET_API_KEY=sk_uPCtZENJgx
+EMPLOYEE_LIST_URL=https://docs.google.com/spreadsheets/d/e/2PACX-1vTg1J0pU183WUQ1vhF1LvUytmOQj9pW3Ug-lzZGdcQYcZcGI7OzALWHfPpat5r7JsCPypR10Lj3sSfR/pub?gid=1976861448&single=true&output=csv
+
+# Supabase Configuration
+SUPABASE_URL=https://zpwwsiljoyrfibillxzd.supabase.co
+SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpwd3dzaWxqb3lyZmliaWxseHpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzM0NDY4NzQsImV4cCI6MjA0OTAyMjg3NH0.-O2sEPO6IlcPyWLElR6apE7G4gPHgg8S0SFdaalp388
+SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpwd3dzaWxqb3lyZmliaWxseHpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzM0NDY4NzQsImV4cCI6MjA0OTAyMjg3NH0.-O2sEPO6IlcPyWLElR6apE7G4gPHgg8S0SFdaalp388
+
+# Batch Processing Configuration
+BATCH_PROCESSING_RATE=5
+BATCH_MAX_RETRIES=3
+BATCH_RETRY_DELAY=300000
+BATCH_CLEANUP_INTERVAL=3600000
+BATCH_MAX_SIZE=10000
+
+# Performance Monitoring
+ENABLE_PERFORMANCE_MONITORING=true
+PERFORMANCE_SAMPLE_RATE=100
+SLA_WARNING_THRESHOLD=900000
+SLA_CRITICAL_THRESHOLD=1800000
+
+# Feature Flags
+FEATURE_FLAG_NEW_BATCH_SYSTEM=true
+FEATURE_FLAG_ANALYTICS_DASHBOARD=true
+FEATURE_FLAG_PERFORMANCE_MONITORING=true
+
+# Logging Configuration
+LOG_LEVEL=info
+LOG_FORMAT=json
+ENABLE_REQUEST_LOGGING=true
+
+# Cache Configuration
+PREVIEW_CACHE_SIZE=1000
+PREVIEW_CACHE_TTL=3600
+EOL
+
+# Start the application
+docker-compose up -d
+
+# Show status
+docker-compose ps
+docker-compose logs --tail=50

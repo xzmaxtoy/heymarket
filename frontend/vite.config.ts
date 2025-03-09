@@ -10,6 +10,38 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    // Reduce build time by disabling source maps in production
+    sourcemap: false,
+    // Use esbuild for faster minification
+    minify: 'esbuild',
+    // Increase chunk size warning limit
+    chunkSizeWarningLimit: 1000,
+    // Optimize chunk splitting for better performance
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: [
+            'react', 
+            'react-dom', 
+            'react-router-dom',
+            '@mui/material',
+            '@reduxjs/toolkit',
+            'react-redux'
+          ],
+          // Group MUI components together
+          mui: [
+            '@mui/x-date-pickers',
+            '@mui/icons-material'
+          ]
+        }
+      }
+    },
+    // Limit the number of concurrent tasks
+    target: 'esnext',
+    // Optimize for modern browsers only
+    cssCodeSplit: false
+  },
   server: {
     proxy: {
       // Proxy API requests to backend

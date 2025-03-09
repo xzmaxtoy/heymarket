@@ -1,39 +1,50 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Box, CssBaseline, AppBar, Toolbar, Typography, Container } from '@mui/material';
+import { Box, CssBaseline, Container, Typography, useTheme, useMediaQuery } from '@mui/material';
 import BatchWorkspaceRoutes from './features/batches/workspace/routes/BatchWorkspaceRoutes';
 import { useFeatureFlag } from './hooks/useFeatureFlag';
 
-// Import existing components
+// Import components
 import BatchList from './features/batches/BatchList';
 import TemplateList from './features/templates/TemplateList';
 import CustomerSelection from './features/customers/CustomerSelection';
 import AnalyticsDashboard from './features/analytics/components/AnalyticsDashboard';
-import Navigation from './components/Navigation';
+import AppHeader from './components/AppHeader';
 
 export default function App() {
   const { isEnabled: useNewBatchSystem } = useFeatureFlag('NEW_BATCH_SYSTEM');
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   return (
     <Router>
-      <Box sx={{ display: 'flex' }}>
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        minHeight: '100vh',
+        backgroundColor: theme.palette.background.default
+      }}>
         <CssBaseline />
         
-        {/* App Bar */}
-        <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
-          <Toolbar>
-            <Typography variant="h6" noWrap component="div">
-              SMS Management System
-            </Typography>
-          </Toolbar>
-        </AppBar>
-
-        {/* Navigation */}
-        <Navigation />
+        {/* Header */}
+        <AppHeader />
 
         {/* Main Content */}
-        <Box component="main" sx={{ flexGrow: 1, p: 3, mt: 8 }}>
-          <Container maxWidth="xl">
+        <Box 
+          component="main" 
+          sx={{ 
+            flexGrow: 1,
+            width: '100%',
+            mt: { xs: 7, sm: 8 }, // Adjust margin based on screen size
+            pb: { xs: 2, sm: 3 }  // Add bottom padding for mobile
+          }}
+        >
+          <Container 
+            maxWidth="xl"
+            sx={{
+              px: { xs: 1, sm: 2, md: 3 } // Responsive padding
+            }}
+          >
             <Routes>
               {/* Redirect root to batches */}
               <Route path="/" element={<Navigate to="/batches" replace />} />

@@ -29,35 +29,6 @@ Both frontend and backend use semantic versioning (MAJOR.MINOR.PATCH):
 - MINOR: New features, backward-compatible
 - PATCH: Bug fixes, backward-compatible
 
-## Branch Management
-
-### Primary Branches
-- `master`: The main production branch containing stable code
-- `develop`: Integration branch for feature development
-- `stable-v1`: Stable version branch for v1.x maintenance
-
-### Special Branches
-- `archive/master-deprecated`: Historical reference of old master branch
-- `backup/pre-optimization`: Backup branch for major optimizations
-- `rollback-v2.1.0`: Recovery point for version 2.1.0
-
-### Feature Branches
-- Created from: `master` or `develop`
-- Naming convention: `feature/<feature-name>`
-- Merged back to: `master` after review
-- Deleted after: successful merge and deployment
-
-### Fix Branches
-- Created from: `master`
-- Naming convention: `fix/<issue-name>`
-- Merged back to: `master`
-- Deleted after: successful merge and deployment
-
-### Branch Cleanup
-- Regular cleanup of merged feature branches
-- Preservation of important historical branches
-- Maintenance of clean and organized repository structure
-
 ## Synchronization
 
 While versions are tracked separately, some features require coordination:

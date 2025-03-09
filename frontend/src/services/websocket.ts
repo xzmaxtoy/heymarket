@@ -1,9 +1,24 @@
-import { io, Socket } from 'socket.io-client';
+// Try to import socket.io-client, but provide fallbacks if it's not available
+let io: any;
+let socket: any = null;
+try {
+  // This import might fail if socket.io-client is not installed
+  const socketIo = require('socket.io-client');
+  io = socketIo.io;
+} catch (error) {
+  console.error('socket.io-client not found. WebSocket functionality will be disabled.');
+  // Provide a dummy implementation
+  io = (url: string) => ({
+    on: () => {},
+    emit: () => {},
+    close: () => {},
+    connected: false
+  });
+}
+
 import { store } from '@/store';
 import { updateBatch } from '@/store/slices/batchesSlice';
 import { supabase } from './supabase';
-
-let socket: Socket | null = null;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY = 2000; // 2 seconds

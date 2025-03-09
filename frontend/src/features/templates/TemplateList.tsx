@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import { Box, Paper } from '@mui/material';
+import { Box, Paper, Button, useTheme, useMediaQuery } from '@mui/material';
 import { Template } from './types';
 import { Customer } from '@/types/customer';
 import { useTemplateList } from './hooks/useTemplateList';
 import TemplateListToolbar from './components/TemplateListToolbar';
 import TemplateDataGrid from './components/TemplateDataGrid';
+import TemplateCardGrid from './components/TemplateCardGrid';
 import TemplateFormDialog from './components/TemplateFormDialog';
 import TemplatePreviewDialog from './components/TemplatePreviewDialog';
+import ViewToggle from '@/components/ViewToggle';
+import { Add as AddIcon } from '@mui/icons-material';
 
 interface TemplateListProps {
   selectedCustomer?: Customer;
@@ -68,30 +71,81 @@ export const TemplateList: React.FC<TemplateListProps> = ({
     reloadTemplates();
   };
 
-  return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <TemplateListToolbar
-        filter={filter}
-        onFilterChange={onFilterChange}
-        onCreateClick={handleCreateClick}
-      />
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>(isMobile ? 'grid' : 'table');
 
-      <Paper sx={{ flex: 1, m: 2 }}>
-        <TemplateDataGrid
+  // Update view mode when screen size changes
+  React.useEffect(() => {
+    setViewMode(isMobile ? 'grid' : viewMode);
+  }, [isMobile]);
+
+  return (
+    <Box sx={{ 
+      height: '100%', 
+      display: 'flex', 
+      flexDirection: 'column',
+      p: { xs: 1, sm: 2 } // Responsive padding
+    }}>
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: { xs: 'column', sm: 'row' },
+        justifyContent: 'space-between', 
+        alignItems: { xs: 'stretch', sm: 'center' },
+        gap: 2,
+        mb: 2 
+      }}>
+        <TemplateListToolbar
+          filter={filter}
+          onFilterChange={onFilterChange}
+          onCreateClick={handleCreateClick}
+        />
+        <Box sx={{ 
+          display: 'flex', 
+          gap: 2,
+          justifyContent: { xs: 'space-between', sm: 'flex-end' },
+          alignItems: 'center'
+        }}>
+          <ViewToggle view={viewMode} onChange={setViewMode} />
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<AddIcon />}
+            onClick={handleCreateClick}
+            fullWidth={isMobile}
+          >
+            Create Template
+          </Button>
+        </Box>
+      </Box>
+
+      {viewMode === 'grid' ? (
+        <TemplateCardGrid
           templates={templates}
-          loading={loading}
-          total={total}
-          page={currentPage}
-          pageSize={pageSize}
-          onPageChange={onPageChange}
-          onPageSizeChange={onPageSizeChange}
           onTemplateSelect={onTemplateSelect}
           onPreviewClick={handlePreviewClick}
           onEditClick={handleEditClick}
           onDeleteClick={onDeleteTemplate}
         />
-      </Paper>
+      ) : (
+        <Paper sx={{ flex: 1 }}>
+          <TemplateDataGrid
+            templates={templates}
+            loading={loading}
+            total={total}
+            page={currentPage}
+            pageSize={pageSize}
+            onPageChange={onPageChange}
+            onPageSizeChange={onPageSizeChange}
+            onTemplateSelect={onTemplateSelect}
+            onPreviewClick={handlePreviewClick}
+            onEditClick={handleEditClick}
+            onDeleteClick={onDeleteTemplate}
+          />
+        </Paper>
+      )}
 
+      {/* Dialogs */}
       <TemplateFormDialog
         open={formOpen}
         onClose={handleFormClose}

@@ -1,12 +1,10 @@
 import React from 'react';
 import {
   Box,
-  Button,
   TextField,
   InputAdornment,
 } from '@mui/material';
 import {
-  Add as AddIcon,
   Search as SearchIcon,
 } from '@mui/icons-material';
 import { TemplateFilter } from '../types';
@@ -20,7 +18,6 @@ interface TemplateListToolbarProps {
 export const TemplateListToolbar: React.FC<TemplateListToolbarProps> = ({
   filter,
   onFilterChange,
-  onCreateClick,
 }) => {
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     onFilterChange({
@@ -30,7 +27,12 @@ export const TemplateListToolbar: React.FC<TemplateListToolbarProps> = ({
   };
 
   return (
-    <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+    <Box sx={{ 
+      display: 'flex', 
+      alignItems: 'center', 
+      gap: 2,
+      width: '100%'
+    }}>
       <TextField
         size="small"
         placeholder="Search templates..."
@@ -43,16 +45,8 @@ export const TemplateListToolbar: React.FC<TemplateListToolbarProps> = ({
             </InputAdornment>
           ),
         }}
-        sx={{ width: 300 }}
+        fullWidth
       />
-      <Box sx={{ flex: 1 }} />
-      <Button
-        variant="contained"
-        startIcon={<AddIcon />}
-        onClick={onCreateClick}
-      >
-        Create Template
-      </Button>
     </Box>
   );
 };

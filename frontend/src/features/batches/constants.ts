@@ -6,6 +6,7 @@ export const BATCH_STATUS_COLORS: Record<BatchStatus, string> = {
   completed: 'success',
   failed: 'error',
   cancelled: 'default',
+  paused: 'warning',
 };
 
 export const BATCH_STATUS_LABELS: Record<BatchStatus, string> = {
@@ -14,6 +15,7 @@ export const BATCH_STATUS_LABELS: Record<BatchStatus, string> = {
   completed: 'Completed',
   failed: 'Failed',
   cancelled: 'Cancelled',
+  paused: 'Paused',
 };
 
 export const BATCH_STATUS_OPTIONS = Object.entries(BATCH_STATUS_LABELS).map(([value, label]) => ({
