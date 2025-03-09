@@ -2,15 +2,15 @@
 FROM node:18-alpine AS frontend-deps
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-# Use regular npm install instead of npm ci
-RUN npm install --production
+# Install all dependencies including dev dependencies for build
+RUN npm install
 
 # Backend Dependencies
 FROM node:18-alpine AS backend-deps
 WORKDIR /app
 COPY package*.json ./
-# Use regular npm install instead of npm ci
-RUN npm install --production
+# Install all dependencies including dev dependencies for build
+RUN npm install
 
 # Frontend Build
 FROM frontend-deps AS frontend-builder
