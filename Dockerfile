@@ -17,11 +17,12 @@ FROM frontend-deps AS frontend-builder
 # Set production environment and increase memory limit for build
 ENV NODE_ENV=production
 ENV NODE_OPTIONS="--max-old-space-size=4096"
-# Copy only the necessary files for the build
+# Copy all necessary files for the build
 COPY frontend/public ./public
 COPY frontend/src ./src
 COPY frontend/*.json ./
 COPY frontend/*.ts ./
+COPY frontend/index.html ./
 # Use timeout command to prevent build from hanging indefinitely
 RUN timeout 30m npm run build || (echo "Build timed out but may have completed enough to continue" && ls -la dist/)
 
