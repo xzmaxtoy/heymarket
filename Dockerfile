@@ -2,13 +2,13 @@
 FROM node:18-alpine AS frontend-deps
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
 # Backend Dependencies
 FROM node:18-alpine AS backend-deps
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
 # Frontend Build
 FROM frontend-deps AS frontend-builder
